@@ -17,7 +17,7 @@ int main(int argc, char *argv[])
 	return 1;
 }
 
-	memset(&hints, 0, sizeof hints);			//create memory for hints
+	memset(&hints, 0, sizeof hints);		//create memory for hints
 	hints.ai_family = AF_UNSPEC; 			// AF_INET or AF_INET6 to force version
 	hints.ai_socktype = SOCK_STREAM;
 	
@@ -34,6 +34,7 @@ int main(int argc, char *argv[])
 	void *addr;
 	char *ipver;
 	char *socktype;
+	char *protocol;
 	// get the pointer to the address itself,
 	// different fields in IPv4 and IPv6:
 
@@ -50,16 +51,22 @@ int main(int argc, char *argv[])
 
 	if (p->ai_socktype == SOCK_STREAM)
 	{
-		socktype = "Stream (TCP)";
+		socktype = "Stream";
 	}else if (p->ai_socktype == SOCK_DGRAM)
 	{
-		socktype = "Datagram (UDP)";
+		socktype = "Datagram";
 	}
+
+
+	if(p->ai_protocol == 6){ protocol = "TCP";}			//TCP = 6
+	if(p->ai_protocol == 17){ protocol = "UDP";}			//UDP = 17
+	if(p->ai_protocol == 113){ protocol = "RM";}			//RM = 113
 
 	// convert the IP to a string and print it:
 	inet_ntop(p->ai_family, addr, ipstr, sizeof ipstr);	//network->presentation (bin->dd)
 	printf(" %s: %s\n", ipver, ipstr);
 	printf("Type: %s\n", socktype); 
+	printf("Protocol: %s\n", protocol); 		//could be IPPROTO_UDP; IPPROTO_TCP
 
 	}
 freeaddrinfo(res); // free the linked list
