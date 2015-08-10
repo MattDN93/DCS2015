@@ -1,6 +1,7 @@
 /* Program:	SIMPLE CLIENT FOR CONNECTION
 		C stub to test creation of sockets
 		Connects to a port at a remote address
+		Acts as the client
    Module:	DCS 2015 ENEL4CC
    Name:	Matthew de Neef
    Stu. Num.	212503024			*/
@@ -85,7 +86,10 @@ int main(int argc, char *argv[])			//argv[] are args passed from user in termina
 
 	if (s==-1){
 		printf("Socket Creation Failed. Reason:\n");		//if socket failed
+		if (res->ai_flags == 0){printf("The remote socket hasn't been setup yet OR incorrect port specified.");}
+		else{
 		fprintf(stderr,"\n '%s.' \n",gai_strerror(s));	//prints error message
+		}	
 	}
 	else{
 		printf("Created socket successfully using %s, in %s mode using the %s protocol.\n\n",inettype,socktype,prottype);
