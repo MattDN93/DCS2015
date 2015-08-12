@@ -37,16 +37,22 @@ int main(int argc, char *argv[])			//argv[] are args passed from user in termina
 	int portnum;
 	char ipstr[INET6_ADDRSTRLEN];			//array of length of an ipv6 addr
 
-	/* for receiving data we need storage for structs */
+	/* for receiving socket setup we need storage for structs */
 	struct sockaddr_storage incoming_addr;		//struct for incoming
 	socklen_t incoming_addr_size;				//incoming size
 	int new_sd;					//new socket descripter after accept()
 	int bl=0;
 
 	/* for sending data these fields are needed */
-	char *msg_tosend;
-	int sndmsg_len;
-	int bytes_sent;
+	char *msg_tosend;				//string of message to send
+	int sndmsg_len;					//length of string above
+	int bytes_sent;					//counter for bytes sent
+
+	/* for receiving data from a clinet*/
+	char *msg_received;				//string for received message
+	int recvmsg_len;				//received length
+	int bytes_recv;					//buffer to receive
+	
 	/* mandatory - fill in the hints structure
 		       specifies which filters to use when fetching address info
 			-NOTE: this is an addrinfo struct so it has:
@@ -131,20 +137,65 @@ int main(int argc, char *argv[])			//argv[] are args passed from user in termina
 		printf("\nConnection detected! Forking socket descriptor now...");
 		printf("\nNew connection ready on descriptor %d",new_sd);
 		printf("\nSending response to user on fd: %d", new_sd);
+
+		/*send welcome to client*/
 		
 		msg_tosend = "DCS 2015 Sockets Tut 1; Hello World!!";	//msg to send to user
 		sndmsg_len = strlen(msg_tosend);			//set msg length
-		bytes_sent = send(new_sd,msg_tosend,sndmsg_len,0);			//send it!
+		bytes_sent = send(new_sd,msg_tosend,sndmsg_len,0);
+		msg_tosend = "\nType 'about' to get details about this server.\n";	//send it!
+		sndmsg_len = strlen(msg_tosend);		
+		bytes_sent += send(new_sd,msg_tosend,sndmsg_len,0);
+
+		/* wait for client to respond 
+		   NOTE: we use the NEW socket file descriptor to communicate*/
+		while (bytes_recv != 0){
+			bytes_recv = recv(new_sd,msg_received,recvmsg_len,0);
+
+			recvmsg_len = strlen(msg_received);			
+			
+			if ( bytes_recv ==0){printf("\nClient has disconnected!");close(new_sd);break;}
+			else if (bytes_recv == -1){printf("\nError has occurred.");close(new_sd);break;}
+			else {
+			printf("\n------------INCOMING-----------");			
+			printf("\nThis msg: %d bytes received.",bytes_recv);}
+			printf("\n Received: %s",msg_received);
+			printf("\n------------END MESSAGE-----------");
+	
+			/*respond to client requests*/
+			
+			if(strcmp(msg_received,"about\n")==0)
+			{
+			msg_tosend = "\nA basic socket server.\nMatthew de Neef\n 212503024 \n DCS2015";	//msg to send to user
+			sndmsg_len = strlen(msg_tosend);			//set msg length
+			bytes_sent = send(new_sd,msg_tosend,sndmsg_len,0);
+			}
+			
+			//recvmsg_len = 0;			
+			//msg_received = "";		
+			bytes_recv = 1;			
+		}
+		
+		
 		printf("\nA total of %d bytes sent.",bytes_sent);
 		printf("\nThat's %d connections so far.",bl);
 		printf("\n-------------------------------------");
+		
+		/* Reset received buffer and bytecount. Bytecount must
+		   be nonzero to prevent connection closing */
+		msg_received = "";		
+		bytes_recv = 1;
 	}
 
 	printf("\nBacklog limit reached, closing.\n");
+	/* close all socket descriptors*/	
+	close(new_sd);
+	close(s);
+	
 	/*if(c == -1){
 		printf("\nconnection failed. Reason: %s\n",gai_strerror(c));
 	}else{ 
 		printf("Socket connected to %s on port %s successfully\n", dest, destport);
 	}*/
-
+	
 }
