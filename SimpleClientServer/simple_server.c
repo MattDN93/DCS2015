@@ -146,34 +146,49 @@ int main(int argc, char *argv[])			//argv[] are args passed from user in termina
 		msg_tosend = "\nType 'about' to get details about this server.\n";	//send it!
 		sndmsg_len = strlen(msg_tosend);		
 		bytes_sent += send(new_sd,msg_tosend,sndmsg_len,0);
+		msg_tosend = "\nType 'chargen' to get a chargen response.\n";	//send it!
+		sndmsg_len = strlen(msg_tosend);		
+		bytes_sent += send(new_sd,msg_tosend,sndmsg_len,0);
 
 		/* wait for client to respond 
 		   NOTE: we use the NEW socket file descriptor to communicate*/
 		while (bytes_recv != 0){
 			bytes_recv = recv(new_sd,msg_received,recvmsg_len,0);
-
-			recvmsg_len = strlen(msg_received);			
+			
+			
+			//recvmsg_len = strlen(msg_received);			
 			
 			if ( bytes_recv ==0){printf("\nClient has disconnected!");close(new_sd);break;}
 			else if (bytes_recv == -1){printf("\nError has occurred.");close(new_sd);break;}
 			else {
 			printf("\n------------INCOMING-----------");			
-			printf("\nThis msg: %d bytes received.",bytes_recv);}
+			printf("\nThis msg: %d bytes received.",bytes_recv - 2);}
 			printf("\n Received: %s",msg_received);
 			printf("\n------------END MESSAGE-----------");
 	
 			/*respond to client requests*/
+
 			
-			if(strcmp(msg_received,"about\n")==0)
+			if(strstr(msg_received,"about")!=NULL) //about found in request
 			{
-			msg_tosend = "\nA basic socket server.\nMatthew de Neef\n 212503024 \n DCS2015";	//msg to send to user
+			msg_tosend = "\nA basic socket server.\nMatthew de Neef\n 212503024 \n DCS2015\n\n";	//msg to send to user
 			sndmsg_len = strlen(msg_tosend);			//set msg length
 			bytes_sent = send(new_sd,msg_tosend,sndmsg_len,0);
 			}
-			
-			//recvmsg_len = 0;			
-			//msg_received = "";		
-			bytes_recv = 1;			
+
+			if(strstr(msg_received,"chargen")!=NULL) //about found in request
+			{
+			while(1)
+			{
+				msg_tosend = "\n!@#$%^&*()_+<>:{}|<>? abcdefghijklmnopqrstuvwxyz ABCDEFGHIJKLMNOPQRSTUVWXYZ 1234567890\n";	//msg to send to user
+				sndmsg_len = strlen(msg_tosend);			//set msg length
+				bytes_sent = send(new_sd,msg_tosend,sndmsg_len,0);
+			}			
+			}
+
+			msg_received[0] = "\0";		//clear the rx buffer
+
+			bytes_recv = 1;		
 		}
 		
 		
