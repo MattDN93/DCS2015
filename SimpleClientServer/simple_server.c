@@ -180,7 +180,7 @@ int main(int argc, char *argv[])			//argv[] are args passed from user in termina
 			{
 			while(1)
 			{
-				msg_tosend = "\n!@#$%^&*()_+<>:{}|<>? abcdefghijklmnopqrstuvwxyz ABCDEFGHIJKLMNOPQRSTUVWXYZ 1234567890\n";	//msg to send to user
+				msg_tosend = "!@#$%^&*()_+<>:{}|<>? abcdefghijklmnopqrstuvwxyz ABCDEFGHIJKLMNOPQRSTUVWXYZ 1234567890\n";	//msg to send to user
 				sndmsg_len = strlen(msg_tosend);			//set msg length
 				bytes_sent = send(new_sd,msg_tosend,sndmsg_len,0);
 			}			
