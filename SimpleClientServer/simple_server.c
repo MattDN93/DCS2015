@@ -53,6 +53,10 @@ int main(int argc, char *argv[])			//argv[] are args passed from user in termina
 	int recvmsg_len;				//received length
 	int bytes_recv;					//buffer to receive
 	
+	/*chargen string*/
+	char *chgen;
+"
+	
 	/* mandatory - fill in the hints structure
 		       specifies which filters to use when fetching address info
 			-NOTE: this is an addrinfo struct so it has:
@@ -178,12 +182,18 @@ int main(int argc, char *argv[])			//argv[] are args passed from user in termina
 
 			if(strstr(msg_received,"chargen")!=NULL) //about found in request
 			{
-			while(1)
-			{
-				msg_tosend = "\n!@#$%^&*()_+<>:{}|<>? abcdefghijklmnopqrstuvwxyz ABCDEFGHIJKLMNOPQRSTUVWXYZ 1234567890\n";	//msg to send to user
-				sndmsg_len = strlen(msg_tosend);			//set msg length
-				bytes_sent = send(new_sd,msg_tosend,sndmsg_len,0);
-			}			
+				chgen = "!\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\]^_`abcdefghijklmnopqustuvxyz"
+				int chlen = strlen(chglen);
+				int pos=0;
+				while(1)
+				{
+					
+					for(pos=0;pos < ((pos+chlen)%chlen);pos++){
+						msg_tosend += chgen ;	//msg to send to user
+					}
+					sndmsg_len = strlen(msg_tosend);			//set msg length
+					bytes_sent = send(new_sd,msg_tosend,sndmsg_len,0);
+				}			
 			}
 
 			msg_received[0] = "\0";		//clear the rx buffer
