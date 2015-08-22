@@ -178,6 +178,7 @@ int main(int argc, char *argv[])			//argv[] are args passed from user in termina
 
 			if(strstr(msg_received,"chargen")!=NULL) //about found in request
 			{
+			printf("\nsending chargen response!");
 			while(1)
 			{
 				msg_tosend = "!@#$%^&*()_+<>:{}|<>? abcdefghijklmnopqrstuvwxyz ABCDEFGHIJKLMNOPQRSTUVWXYZ 1234567890\n";	//msg to send to user
