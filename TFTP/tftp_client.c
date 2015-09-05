@@ -21,6 +21,7 @@ int main(int argc, char *argv[])			//argv[] are args passed from user in termina
 {
 	char *inarg;	
 	char *arg[3];					//accepts input args from user
+	char *saveptr;	
 	int cont=1;					//var to indicate continuing execution
 
 	struct addrinfo hints, *res, *p;		//declares a struct of type addrinfo 
@@ -81,19 +82,26 @@ int main(int argc, char *argv[])			//argv[] are args passed from user in termina
 	arg2 = filename
 	*/ 
 	int i=0;
-	arg[0] = strtok(inarg, " ");
-	while(arg[i] && i<3) arg[++i] = strtok(NULL, " ");	
-		
+	arg[0] = strtok_r(inarg, " ",&saveptr);
+	arg[1] = strtok_r(NULL, " ",&saveptr);
+	arg[2] = strtok_r(NULL, " ",&saveptr);	
+	
+	if(arg[0]!= NULL && arg[1]!=NULL && arg[2]!=NULL){ 	
 	printf("%s\n",arg[0]);
 	printf("%s\n",arg[1]);
-	printf("%s\n",arg[2]);
+	printf("%s\n",arg[2]);}
 
-	if (arg[0] == NULL){
-	printf("\nSome errors encountered: \nNo hostname entered. Try again.\n");}
-	if (arg[1] != "GET"){
-	printf("This client only supports the TFTP 'GET' command. Try again.\n");}
-	if (arg[2] == NULL){
-	printf("The filename is blank. Please enter a file to download.\n");}
+	if (arg[2] == NULL){			//must have 3 args before checing validity
+	printf("usage: <hostname to connect to> GET <filename>. Try again.\n");}
+	
+	if(arg[2]!=NULL){			//this only runs if we have all 3 args
+	if ((strstr(arg[1],"GET")==NULL)&&(strstr(arg[1],"get")==NULL)){
+	printf("GET command missing. Try again.\n");}}
+
+	if(arg[2]!=NULL && arg[1]!=NULL){
+	if (arg[0] == "\n\0"){			//only runs if 3 args != NULL
+	printf("\nSome errors encountered: \nNo hostname entered. Try again.\n");}}
+
  }while(cont == 1);
 		
 	
