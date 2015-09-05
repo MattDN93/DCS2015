@@ -19,7 +19,29 @@
 #define TFTP_PORT "2804"					//well known port for TFTP
 
 	/*sockets method*/
-void startSockets(struct addrinfo, struct addrinfo*);
+	void startSockets(char *arg[],struct addrinfo, struct addrinfo*);
+	
+	/*socket destination variables*/
+	char *dest;					//destination hostname
+	char *destport;					//destination port
+	char ipstr[INET6_ADDRSTRLEN];			//array of length of an ipv6 addr
+
+	/*socket properties*/
+	int s,c;					//socket descriptor/ connect result
+	char *inettype;					//friendly names for getaddrinfo params
+	char *socktype;
+	char *prottype;	
+	
+	/* for sending data these fields are needed */
+	char *msg_tosend;				//string of message to send
+	int sndmsg_len;					//length of string above
+	int bytes_sent;					//counter for bytes sent
+
+	/* for receiving data from a server*/
+	char *msg_received;				//string for received message
+	int recvmsg_len;				//received length
+	int bytes_recv;					//buffer to receive
+	int new_sd;					//receiving socket descriptor
 
 int main(int argc, char *argv[])			//argv[] are args passed from user in terminal
 {
@@ -32,30 +54,8 @@ int main(int argc, char *argv[])			//argv[] are args passed from user in termina
 
 	struct addrinfo hints, *res, *p;		//declares a struct of type 
 	int status,rv;					//integer for return flags of functions
-	int s,c;					//socket descriptor/ connect result
-	char *inettype;					//friendly names for getaddrinfo params
-	char *socktype;
-	char *prottype;	
-	
-	char *dest;					//destination hostname
-	char *destport;					//destination port
-	char ipstr[INET6_ADDRSTRLEN];			//array of length of an ipv6 addr
 
-	/* for receiving socket setup we need storage for structs */
-	struct sockaddr_storage incoming_addr;		//struct for incoming
-	socklen_t incoming_addr_size;				//incoming size
 
-	/* for sending data these fields are needed */
-	char *msg_tosend;				//string of message to send
-	int sndmsg_len;					//length of string above
-	int bytes_sent;					//counter for bytes sent
-
-	/* for receiving data from a server*/
-	char *msg_received;				//string for received message
-	int recvmsg_len;				//received length
-	int bytes_recv;					//buffer to receive
-	int new_sd;					//receiving socket descriptor
-	
 
 	//Welcome user with a prompt'
 	printf("TFTP Client | Matthew de Neef | 212503024\n");
@@ -137,20 +137,25 @@ int main(int argc, char *argv[])			//argv[] are args passed from user in termina
 	}
 
 	//CALL SOCKETS
-	startSockets(hints,res);
+	startSockets(arg,hints,res);
+
+	/* for receiving socket setup we need storage for structs */
+	struct sockaddr_storage incoming_addr;		//struct for incoming
+	socklen_t incoming_addr_size;				//incoming size
 
 }
 
-void startSockets(struct addrinfo hints, struct addrinfo *res)
+void startSockets(char *arg[], struct addrinfo hints, struct addrinfo *res)
 {
 	printf("we're here!");
 
-	/*dest = argv[1];					//assign input args to dest h/n
-	destport = argv[2];				//...or port respectively
+	
+	dest = arg[1];				//assign input args to dest h/n
+	destport = TFTP_PORT;				//...or port respectively
 
-	printf("\n%s and %s\n",argv[1],argv[2]);
+	printf("\n%s and %s\n",arg[1],arg[2]);
 		
-	printf("Opening socket for %s on dest. port: %s\n\n", argv[1], argv[2]);		//else show socket
+	printf("Opening socket for %s on dest. port: %s\n\n", arg[1], TFTP_PORT);		//else show socket
 
 	if(res->ai_family == AF_INET6){inettype = "IPv6";}else{inettype = "IPv4";}
 	if(res->ai_socktype == SOCK_DGRAM){socktype = "Datagram";}else{socktype = "Stream";}
