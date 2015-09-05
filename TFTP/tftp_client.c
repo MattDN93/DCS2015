@@ -22,7 +22,7 @@ int main(int argc, char *argv[])			//argv[] are args passed from user in termina
 	char *inarg;	
 	char *arg[3];					//accepts input args from user
 	char *saveptr;	
-	int cont=1;					//var to indicate continuing execution
+	int cont=0;					//var to indicate continuing execution
 
 	struct addrinfo hints, *res, *p;		//declares a struct of type addrinfo 
 	int status;					//integer for return flags of functions
@@ -74,6 +74,7 @@ int main(int argc, char *argv[])			//argv[] are args passed from user in termina
 	printf("TFTP Client | Matthew de Neef | 212503024\n");
 	printf("usage: <hostname to connect to> GET <filename>.\n e.g. 146.230.193.160 GET picFile \n"); 	
   do{	
+	cont = 0;
 	printf("tftp>");
 	fgets(inarg,50,stdin);				//get line from keyboard
 	/* tokenise input into:
@@ -89,20 +90,27 @@ int main(int argc, char *argv[])			//argv[] are args passed from user in termina
 	if(arg[0]!= NULL && arg[1]!=NULL && arg[2]!=NULL){ 	
 	printf("%s\n",arg[0]);
 	printf("%s\n",arg[1]);
-	printf("%s\n",arg[2]);}
+	printf("%s\n",arg[2]);
+	}
 
 	if (arg[2] == NULL){			//must have 3 args before checing validity
-	printf("usage: <hostname to connect to> GET <filename>. Try again.\n");}
+	printf("usage: <hostname to connect to> GET <filename>. Try again.\n");
+	cont = 1;}
 	
 	if(arg[2]!=NULL){			//this only runs if we have all 3 args
-	if ((strstr(arg[1],"GET")==NULL)&&(strstr(arg[1],"get")==NULL)){
-	printf("GET command missing. Try again.\n");}}
+		if ((strstr(arg[1],"GET")==NULL)&&(strstr(arg[1],"get")==NULL)){
+		printf("GET command missing. Try again.\n");
+		cont = 1;}
+	}
 
 	if(arg[2]!=NULL && arg[1]!=NULL){
-	if (arg[0] == "\n\0"){			//only runs if 3 args != NULL
-	printf("\nSome errors encountered: \nNo hostname entered. Try again.\n");}}
+		if (arg[0] == "\n\0"){			//only runs if 3 args != NULL
+		printf("\nSome errors encountered: \nNo hostname entered. Try again.\n");
+		cont = 1;}
+	}
 
- }while(cont == 1);
+
+ }while(cont == 1);		//break out of this loop if the syntax is correct!
 		
 	
 
