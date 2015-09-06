@@ -33,6 +33,7 @@
 	char *prottype;	
 	
 	/* for sending data these fields are needed */
+	struct sockaddr_in dgram_dest;			//datagram destination
 	char *msg_tosend;				//string of message to send
 	int sndmsg_len;					//length of string above
 	int bytes_sent;					//counter for bytes sent
@@ -58,6 +59,7 @@ int main(int argc, char *argv[])			//argv[] are args passed from user in termina
 	struct addrinfo hints, *res, *p;		//declares a struct of type 
 	int status,rv;					//integer for return flags of functions
 	memset(&hints, 0, sizeof hints);		//create memory for hints
+	
 	//Welcome user with a prompt'
 	printf("TFTP Client | Matthew de Neef | 212503024\n");
 	printf("usage: <hostname to connect to> GET <filename>.\n e.g. 146.230.193.160 GET picFile \n"); 	
@@ -66,11 +68,13 @@ do{
 	cont = 0;
 	printf("tftp>");
 	fgets(inarg,50,stdin);				//get line from keyboard
+	
 	/* tokenise input into:
 	arg0 = hostname
 	arg1 = "GET" for now
 	arg2 = filename
 	*/ 
+
 	int i=0;
 	arg0 = strtok_r(inarg, " ",&saveptr);
 	arg1 = strtok_r(NULL, " ",&saveptr);
@@ -99,6 +103,7 @@ do{
 	}
 
  }while(cont == 1);		//break out of this loop if the syntax is correct!
+		
 		/* mandatory - fill in the hints structure
 		       specifies which filters to use when fetching address info
 			-NOTE: this is an addrinfo struct so it has:
@@ -120,7 +125,7 @@ do{
 	hints.ai_protocol = 0;				//any protocol accepted
 
 	//GETTING ADDRESS INFO FROM HOST SERVER	
-	printf("Again AFTER MEMSET: %s\n",arg1);
+	//printf("Again AFTER MEMSET: %s\n",arg1);
 	/*get address info for host 	
 	ARGUMENTS:	1st: IP address of host to get info
 			2nd: Port, fixed at 69 for TFTP
@@ -141,7 +146,7 @@ do{
 	printf("we're here!");
 
 	
-	dest = arg1;				//assign input args to dest h/n
+	dest = arg0;				//assign input args to dest h/n
 	destport = TFTP_PORT;				//...or port respectively
 
 	printf("\n%s and %s\n",arg1,arg2);
@@ -158,8 +163,25 @@ do{
 	printf("family: %s \n socket type: %s \n protocol: %s \n",inettype,socktype,prottype);
 	
 	/*action section - create socket and connect*/
-	s = socket(res->ai_family, res->ai_socktype, res->ai_protocol);	//tries to pass to socket()
-	c = connect(s, res->ai_addr, res->ai_addrlen);
+	//s = socket(res->ai_family, res->ai_socktype, res->ai_protocol);	//tries to pass to socket()
+	
+	//LOOPING THROUGH RESULTS TO MAKE A SOCKET
+	// loop through all the results and make a socket
+	for(p = res; p != NULL; p = p->ai_next) {
+		if ((s = socket(p->ai_family, p->ai_socktype,p->ai_protocol)) == -1) 
+		{
+		perror("Socket creation failed on this port.");
+		continue;
+		}
+	break;		//as soon as first socket made, quit loop
+	}
+	
+	//if p isn't assigned after the loop it means so sockets bound
+	if (p== NULL){
+	fprintf(stderr, "Error. Socket binding failed.\n");	
+	}else{
+	printf("Socket for %s on port %s ready.\n",arg0,TFTP_PORT);
+	}
 
 	/* for receiving socket setup we need storage for structs */
 	struct sockaddr_storage incoming_addr;		//struct for incoming
@@ -177,30 +199,47 @@ do{
 		printf("\nSending chargen command automatically!");
 
 		/*issues send command to server*/
-		msg_tosend = "GET picFile";					//msg to send to server		
+		msg_tosend = "GET picFile";				//msg to send to server		
 		sndmsg_len = strlen(msg_tosend);			//define the message length
-		send(s,msg_tosend,sndmsg_len,0);			//s is the stored socket descriptor for this connection*/
-
-		listen(s,1);						//listen on socket server is using for msgs from it
 		
+		/*DATAGRAM SEND
+		using sendto() needs extra vars from p addrinfo stuct
+		allows UDP packet to have dest IP addr and defines its length.
+		in this case we only send the server GET <filename>
+			
+		s is the stored socket descriptor for this connection
+
+		OUTPUT: # bytes sent; error condition if fail		
+		*/
+		
+		if((bytes_sent = sendto(s,msg_tosend,sndmsg_len,0,p->ai_addr, p->ai_addrlen))==-1){
+			perror("Sending command to server failed.");	//if send fails, quit send process
+			close(s);					//close socket			
+			exit(1);
+		}
+		//if no error, show stats
+		printf("sent %d bytes to %s\n",bytes_sent,arg0);
+					
 		//...when connection incoming...
 		incoming_addr_size = sizeof(incoming_addr);		//make space in mem for struct
 		new_sd = accept(s, (struct sockaddr *)&incoming_addr, &incoming_addr_size);
 		
-		/*while socket connection remains open, receive chargen from server*/
+		/*while socket connection remains open, receive chargen from server
 		while (bytes_recv >= 0){				//as long as server messages non-empty, receive them
-			bytes_recv = recv(new_sd,msg_received,recvmsg_len,0);
+			bytes_recv = recvfrom(new_sd,msg_received,recvmsg_len,0);
 			//printf("%s",msg_received);				//get data and print out received msg
 		bytes_recv = 1;
-		}
+		}*/
 		if (msg_received == NULL)
 		{
 			printf("\nServer response error. Message not received.\n");
+			close(s);		
 		}
 	}
 
 	if(c == -1){
 		printf("\nconnection failed. Reason: %s\n",gai_strerror(c));
+		close(s);	//close the socket	
 	}else{ 
 		printf("Socket connected to %s on port %s successfully\n", dest, destport);
 	}
