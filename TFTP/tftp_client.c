@@ -16,7 +16,7 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 
-#define TFTP_PORT "2804"					//well known port for TFTP
+#define TFTP_PORT "69"					//well known port for TFTP
 
 	/*sockets method*/
 	//void startSockets(char *,char * , char *,struct addrinfo, struct addrinfo*);
@@ -87,7 +87,7 @@ do{
 	cont = 1;}
 	
 	if(arg2!=NULL){			//this only runs if we have all 3 args
-		if ((strstr(arg1,"GET")==NULL)&&(strstr(arg2,"get")==NULL)){
+		if ((strstr(arg1,"GET")==NULL)&&(strstr(arg1,"get")==NULL)){
 		printf("GET command missing. Try again.\n");
 		cont = 1;}
 	}
@@ -115,7 +115,7 @@ do{
 
 
 	hints.ai_family = AF_UNSPEC; 			// AF_INET or AF_INET6 to force version
-	hints.ai_socktype = 0;			//type of socket--we want a UDP socket for TFTP
+	hints.ai_socktype = SOCK_DGRAM;			//type of socket--we want a UDP socket for TFTP
 	//hints.ai_flags = AI_PASSIVE;			//keep this DISABLED to use connect()
 	hints.ai_protocol = 0;				//any protocol accepted
 
@@ -177,7 +177,7 @@ do{
 		printf("\nSending chargen command automatically!");
 
 		/*issues send command to server*/
-		msg_tosend = "chargen\r\n";					//msg to send to server		
+		msg_tosend = "GET picFile";					//msg to send to server		
 		sndmsg_len = strlen(msg_tosend);			//define the message length
 		send(s,msg_tosend,sndmsg_len,0);			//s is the stored socket descriptor for this connection*/
 
@@ -190,7 +190,7 @@ do{
 		/*while socket connection remains open, receive chargen from server*/
 		while (bytes_recv >= 0){				//as long as server messages non-empty, receive them
 			bytes_recv = recv(new_sd,msg_received,recvmsg_len,0);
-			printf("%s",msg_received);				//get data and print out received msg
+			//printf("%s",msg_received);				//get data and print out received msg
 		bytes_recv = 1;
 		}
 		if (msg_received == NULL)
