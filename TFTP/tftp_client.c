@@ -15,9 +15,12 @@
 /* to explain sockets, only these are explicitly needed */
 #include <sys/types.h>
 #include <sys/socket.h>
+#include "cs_tftp.h"					//standardised declarations for TFTP
 
 #define TFTP_PORT "69"					//well known port for TFTP
-
+#define RRQ 1
+#define WRQ 2
+#define ERR 3
 	/*sockets method*/
 	//void startSockets(char *,char * , char *,struct addrinfo, struct addrinfo*);
 	
@@ -33,6 +36,11 @@
 	char *prottype;	
 	
 	/* for sending data these fields are needed */
+	//RRQ PACKET
+	generic_packet rrq;      			// request packet
+       	char* prrq = (char*)&rrq;  			// pointer to rrq packet 	
+	
+	//GENERIC DATA PACKET
 	struct sockaddr_in dgram_dest;			//datagram destination
 	char *msg_tosend;				//string of message to send
 	int sndmsg_len;					//length of string above
@@ -196,27 +204,34 @@ do{
 	}
 	else{
 		printf("Created socket successfully using %s, in %s mode using the %s protocol.\n\n",inettype,socktype,prottype);
-		printf("\nSending chargen command automatically!");
 
 		/*issues send command to server*/
-		msg_tosend = "GET picFile";				//msg to send to server		
-		sndmsg_len = strlen(msg_tosend);			//define the message length
+		//msg_tosend = "GET picFile";				//msg to send to server		
+		//sndmsg_len = strlen(msg_tosend);			//define the message length
 		
 		/*DATAGRAM SEND
 		using sendto() needs extra vars from p addrinfo stuct
 		allows UDP packet to have dest IP addr and defines its length.
 		in this case we only send the server GET <filename>
-			
+		
+		RRQ form (sprintf)	
+		[opcode=1][filename (arg2)][0][mode][0]
+		
 		s is the stored socket descriptor for this connection
 
 		OUTPUT: # bytes sent; error condition if fail		
 		*/
-		
-		if((bytes_sent = sendto(s,msg_tosend,sndmsg_len,0,p->ai_addr, p->ai_addrlen))==-1){
+
+		rrq.opcode = RRQ;			//opcode = 1 (RRQ)
+		sprintf((char *)&(rrq.info), "%s%c%s%c", arg2, '\0', "netascii", '\0');
+		printf("%s",rrq.info);		
+
+		if((bytes_sent = sendto(s,(void*)&rrq,14,0,p->ai_addr, p->ai_addrlen))==-1){
 			perror("Sending command to server failed.");	//if send fails, quit send process
 			close(s);					//close socket			
 			exit(1);
 		}
+		//printf("sent packet %X %X %s \nWaiting for reply\n",prrq[0], prrq[1], prrq+10);
 		//if no error, show stats
 		printf("sent %d bytes to %s\n",bytes_sent,arg0);
 					
