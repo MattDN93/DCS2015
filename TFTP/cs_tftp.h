@@ -42,8 +42,8 @@ static char *errormsg[] = {
 
 typedef
     struct generic_packet {
-         short unsigned opcode;
-         char info[514];
+	 short unsigned opcode;
+	 char info[514];
      } generic_packet;
 
 typedef
@@ -67,3 +67,4 @@ typedef
      } error_packet;
 
 #endif
+

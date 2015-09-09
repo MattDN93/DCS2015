@@ -21,7 +21,10 @@
 #define TFTP_PORT "69"					//well known port for TFTP
 #define TFTP_BUFFER_LEN 512				//length opf data packets in TFTP
 #define WRQ 2
-#define ERR 3
+#define ERR 5
+
+#define TEXT 0
+#define BINARY 1
 	/*sockets method*/
 	//void startSockets(char *,char * , char *,struct addrinfo, struct addrinfo*);
 	
@@ -55,14 +58,24 @@
 	int recvmsg_len;				//received length
 	int bytes_recv;					//buffer to receive
 	int new_sd;					//receiving socket descriptor
-
+	int cont_recv=1;				//flag to set if data must still be received
+	int total_size;				//total Rx size
+	
+	/*using header struct definitions for predefined packets */
 	data_packet *data = (data_packet*)buffer;		//data from buffer
 	ack_packet *pack = (ack_packet*)buffer;     	//for returning ACKs for data received
+
+	/* char arrays for each user input arg 
+	arg0 = hostname / address
+	arg1 = GET / PUT (only get for now)
+	arg2 = filename
+	*/
 
 	char *arg0;
 	char *arg1;
 	char *arg2;
-
+	FILE *filePtr;					///pointer for file access
+	int filetype;					//0=text, 1=binary
 int main(int argc, char *argv[])			//argv[] are args passed from user in terminal
 {
 	char *inarg;	
@@ -121,8 +134,40 @@ do{
 	}
 
  }while(cont == 1);		//break out of this loop if the syntax is correct!
-		
-		/* mandatory - fill in the hints structure
+
+	
+	//FILE CREATION-------------------------------------------
+	//we create a text file to write to if getting text file
+	//otherwise, a binary file is opened to append to
+
+	//----------------------------------
+	//REMOVE TRAILING crlf on filename
+	arg2[strcspn(arg2, "\n")] = 0;
+	//----------------------------------
+
+	if((strstr(arg2,"text")!=NULL)){			//the filename is a text file!
+	filePtr = fopen((char *)arg2,"w");			//creates file to write to
+	if (filePtr == NULL){ printf("File I/O error.");}		
+	filetype = TEXT;					//TEXT FILE
+	}
+
+	else if ((strstr(arg2,"pic")!=NULL)){			//picture file
+	filePtr = fopen((char *)arg2,"wb");			//binary write mode!
+	filetype = BINARY;					//BINARY FILE
+	if (filePtr == NULL) {printf("File I/O error.");}		
+	}
+
+	else if ((strstr(arg2,"movie")!=NULL)){			//video file
+	filePtr = fopen((char *)arg2,"wb");			//binary write mode!
+	filetype = BINARY;					//BINARY FILE
+	if (filePtr == NULL){ printf("File I/O error.");}	
+	
+	}
+
+	//-------------------------------------------
+	
+	//PASSING HINTS TO SERVERs
+	/* mandatory - fill in the hints structure
 		       specifies which filters to use when fetching address info
 			-NOTE: this is an addrinfo struct so it has:
 			ai_flags
@@ -166,7 +211,7 @@ do{
 	dest = arg0;				//assign input args to dest h/n
 	destport = TFTP_PORT;				//...or port respectively
 
-	printf("\n%s and %s\n",arg1,arg2);
+	//printf("\n%s and %s\n",arg1,arg2);
 		
 	printf("Opening socket for %s on dest. port: %s\n\n", arg0, TFTP_PORT);		//else show socket
 
@@ -174,9 +219,9 @@ do{
 	if(res->ai_socktype == SOCK_DGRAM){socktype = "Datagram";}else{socktype = "Stream";}
 	if(res->ai_protocol == 6){prottype = "TCP";}else{prottype = "UDP";}
 	
-	printf("%d\n",res->ai_family);
-	printf("%d\n",res->ai_socktype);
-	printf("%d\n",res->ai_protocol);
+	//printf("%d\n",res->ai_family);
+	//printf("%d\n",res->ai_socktype);
+	//printf("%d\n",res->ai_protocol);
 	printf("family: %s \n socket type: %s \n protocol: %s \n",inettype,socktype,prottype);
 	
 	/*action section - create socket and connect*/
@@ -227,14 +272,9 @@ do{
 		OUTPUT: # bytes sent; error condition if fail		
 		*/
 
-		//----------------------------------
-		//REMOVE TRAILING crlf on filename
-		arg2[strcspn(arg2, "\n")] = 0;
-		//----------------------------------
-
 		rrq.opcode = htons(RRQ);	//opcode = 1 (RRQ) use host-to-network!!
 		sprintf((char *)&(rrq.info), "%s%c%s%c", arg2, '\0', "octet", '\0');
-		printf("%s",rrq.info);	
+		//printf("%d",(int)rrq.opcode);	
 		
 		if((n = sendto(s,&rrq,24,0,res->ai_addr, res->ai_addrlen))==-1){
 			perror("Sending command to server failed.");	//if send fails, quit send process	
@@ -243,6 +283,7 @@ do{
 
 		//if no error, show stats
 		printf("sent %d bytes to %s\n",bytes_sent,arg0);
+
 		//freeaddrinfo(res);					//we're done with server port/addrinfo
 		//-----------------------------------------------------------------------------------------------
 		/*DATAGRAM RECEIVE & ACK
@@ -256,28 +297,56 @@ do{
 		OUTPUT: sends return ACKs as each block received	
 		*/
 
-
-				
+		
 		/* for receiving socket setup we need storage for structs */
 		struct sockaddr_storage incoming_addr;			//struct for incoming
 		socklen_t incoming_addr_len;				//incoming size
 		incoming_addr_len = sizeof(incoming_addr);		//make space in mem for struct
 		
-		bytes_recv = recvfrom(s,buffer,sizeof(buffer),0,(struct sockaddr *)&incoming_addr, &incoming_addr_len);
 		//continuous process for all data blocks
-		while (bytes_recv > 0){				//as long as server messages non-empty, receive them
+	//RECEVING DATA PROCESS--------------------------------------------------------
+	while (cont_recv > 0){				//as long as server messages non-empty, receive them
+		//receive data!
 		bytes_recv = recvfrom(s,buffer,sizeof(buffer),0,(struct sockaddr *)&incoming_addr, &incoming_addr_len);
+		
+		
+		//error check - does file exist?
+		if((ntohs(data->opcode)) == ERR){
+		printf("Error: %s\n",data->data);
+		cont_recv = 0;							//exit loop for Rx
+		fclose(filePtr);						//close file I/O
+		
+		pack->opcode = htons((u_short)ACK);				//ACK the file not found!
+		pack->block_number = data->block_number;		
+
+		close(s);							//close socket
+		exit(0);
+		}
+				
+	
 		n = bytes_recv;
-		 data->data[bytes_recv-4] = '\0';
+		data->data[bytes_recv-4] = '\0';
+		
+		//add packet size to total
+		total_size += bytes_recv;
+
 		//DEBUG output stats
 		printf("Received packet type %d, block %d, data: %s\n",
 		       ntohs(data->opcode), ntohs(data->block_number),
 		       data->data);
+
+		/*write to text/binary file here*/
+		if(filetype == TEXT){
+		fputs(data->data, filePtr);		//write to file
+		}else if (filetype == BINARY){
+		fputs(data->data, filePtr);
+		}					
 		
 		//build ACK for current block and send	
 		pack->opcode = htons((u_short)ACK);
 		pack->block_number = data->block_number;		
-
+		
+		//send ACK
 		bytes_sent = sendto(s, (void*)pack, 4, 0,(struct sockaddr *)&incoming_addr, incoming_addr_len);
 		
 		//check ACK validity
@@ -288,9 +357,12 @@ do{
 		//check if connection is ready to be closed
 		//if datalength <512 bytes (+46 header), close the socket.
 		if(n < 512){
-			printf("File received. Closing socket");
-			close(s);
-			exit(0);}	
+			printf("\nFile size: %d bytes\n",total_size-4); 			//display total size of file
+			printf("File received. Check folder for contents. Closing socket\n");
+			cont_recv = 0;							//exit loop for Rx
+			fclose(filePtr);						//close file I/O
+			close(s);							//close socket
+			exit(0);}							//quit program
 	}//end loop to receive
 
 		if (bytes_recv == -1)
@@ -306,6 +378,7 @@ do{
 		printf("\nconnection failed. Reason: %s\n",gai_strerror(c));
 	}
 }
+
 
 
 
