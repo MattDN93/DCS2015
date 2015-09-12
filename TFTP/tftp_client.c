@@ -18,7 +18,7 @@
 #include <sys/socket.h>
 #include "cs_tftp.h"					//standardised declarations for TFTP
 
-#define TFTP_PORT "69"					//well known port for TFTP
+#define TFTP_PORT "2804"					//well known port for TFTP
 #define TFTP_BUFFER_LEN 512				//length opf data packets in TFTP
 #define WRQ 2
 #define ERR 5
@@ -45,6 +45,11 @@
 	//RRQ PACKET
 	generic_packet rrq;      			// request packet
        	char* prrq = (char*)&rrq;  			// pointer to rrq packet 	
+
+	//WRQ PACKET
+	generic_packet wrq;      			// write request packet
+       	char* pwrq = (char*)&wrq;  			// pointer to rrq packet 	
+		
 	
 	//GENERIC DATA PACKET
 	struct sockaddr_in dgram_dest;			//datagram destination
@@ -81,7 +86,6 @@ int main(int argc, char *argv[])			//argv[] are args passed from user in termina
 	char *inarg;	
 	char *arg[3];					//accepts input args from user
 
-		
 	char *saveptr;	
 	int cont=0;					//var to indicate continuing execution
 
@@ -198,7 +202,7 @@ do{
 			to server. We want datagram and UDP service
 			if the reqs match what the server has, we're OK*/
 	
-	if ((rv = getaddrinfo("146.230.193.160", TFTP_PORT, &hints, &res)) != 0) //errorcheck getaddrinfo
+	if ((rv = getaddrinfo(arg0, TFTP_PORT, &hints, &res)) != 0) //errorcheck getaddrinfo
 	{
 		fprintf(stderr, "Connection params failed: %s\n", gai_strerror(status));
 		return 2;
@@ -224,10 +228,6 @@ do{
 	//printf("%d\n",res->ai_protocol);
 	printf("family: %s \n socket type: %s \n protocol: %s \n",inettype,socktype,prottype);
 	
-	/*action section - create socket and connect*/
-	//s = socket(res->ai_family, res->ai_socktype, res->ai_protocol);	//tries to pass to socket()
-
-	
 	//LOOPING THROUGH RESULTS TO MAKE A SOCKET
 	// loop through all the results and make a socket
 	for(p = res; p != NULL; p = p->ai_next) {
@@ -240,7 +240,6 @@ do{
 	}
 
 
-	
 		//if p isn't assigned after the loop it means so sockets bound
 		if (res== NULL){
 		fprintf(stderr, "Error. Socket binding failed.\n");	
