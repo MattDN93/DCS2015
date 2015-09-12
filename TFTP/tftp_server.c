@@ -52,6 +52,8 @@ int n;
 	generic_packet wrq;      			// request packet
        	char* pwrq = (char*)&wrq;  			// pointer to rrq packet		
 
+	error_packet errpack;
+	char* perr = (char*)&errpack; 
 	//GENERIC DATA PACKET
 	struct sockaddr_in dgram_dest;			//datagram destination
 	char *msg_tosend;				//string of message to send
@@ -213,6 +215,38 @@ int main(int argc, char *argv[])			//argv[] are args passed from user in termina
 	printf("Server: packet is %d bytes long\n", bytes_recv);
     	//buffer[bytes_recv] = '\0';
     	printf("Server: packet contains \"%s\"\n", buffer);
+	printf("---------Packet Information-------\n");
+	int opcode;
+	opcode = buffer[1] ;
+	printf("Opcode:\t\t%d\n",buffer[1]);
+
+	if(opcode ==1){			//we have a RRQ so store it
+		rrq.opcode = htons(RRQ);
+		printf("Type:\t\tRRQ\n");
+	}
+	else if (opcode == 2){		//we have a WRQ so store it
+		wrq.opcode = htons(WRQ);
+		printf("Type:\t\tWRQ\n");
+	}else{				//error occurred
+		errpack.opcode = htons(ERR);
+		printf("Type:\t\tERROR\n");
+	}	
+
+	/* FRAME: [opcode][filename][0][mode][0] */
+	int i=2;			//set pointers where each element starts
+	printf("Filename:\t");
+	
+	while((i < sizeof(buffer)) && buffer[i] != '\0' ){
+	printf("%c",buffer[i]);
+	i++;	
+	}
+	
+	printf("\nMode:\t\t");
+	i+=1;				//advance pointer
+	while((i < sizeof(buffer)) && buffer[i] != '\0' ){
+	printf("%c",buffer[i]);
+	i++;	
+	}
 
 /*	ALL PREVIOUS ROUTINES!------------------------------------
 	while (bl <5 && b>=0 && s>=0)
