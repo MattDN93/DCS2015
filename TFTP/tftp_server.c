@@ -24,12 +24,15 @@
 
 #define TFTP_SERVER_PORT "2804"					//well known port for TFTP
 #define TFTP_BUFFER_LEN 512				//length opf data packets in TFTP
+
+#define RRQ 1
 #define WRQ 2
 #define ERR 5
 
 #define TEXT 0
 #define BINARY 1
 #define BACKLOG 5					//number of waiting backed up connections
+
 
 int n;
 	/*socket destination variables*/
@@ -62,6 +65,7 @@ int n;
 
 	/* for receiving data packets from a client*/
 	struct sockaddr_storage incoming_addr;		//storage for incoming address	
+	char *filename_req;	
 	char buffer[TFTP_BUFFER_LEN];				//string for received message
 	int recvmsg_len;				//received length
 	int bytes_recv;					//buffer to receive
@@ -78,7 +82,8 @@ int n;
 	FILE *filePtr;					///pointer for file access
 	int filetype;					//0=text, 1=binary
 
-
+	/*mode of operation*/
+	int server_mode;
 
 int main(int argc, char *argv[])			//argv[] are args passed from user in terminal
 {
@@ -205,6 +210,9 @@ int main(int argc, char *argv[])			//argv[] are args passed from user in termina
 	socklen_t incoming_addr_len;				//incoming size
 	incoming_addr_len = sizeof(incoming_addr);
 
+/*	---------------------------------------------------------
+	INFORMATIONAL: Shows info about the type of packet received */
+
 	//DEBUG BASIC CODE
 	if ((bytes_recv = recvfrom(s, buffer, TFTP_BUFFER_LEN-1 , 0,
         (struct sockaddr *)&incoming_addr, &incoming_addr_len)) == -1) {
@@ -223,13 +231,16 @@ int main(int argc, char *argv[])			//argv[] are args passed from user in termina
 	if(opcode ==1){			//we have a RRQ so store it
 		rrq.opcode = htons(RRQ);
 		printf("Type:\t\tRRQ\n");
+		server_mode = RRQ;
 	}
 	else if (opcode == 2){		//we have a WRQ so store it
 		wrq.opcode = htons(WRQ);
 		printf("Type:\t\tWRQ\n");
+		server_mode = WRQ;
 	}else{				//error occurred
 		errpack.opcode = htons(ERR);
 		printf("Type:\t\tERROR\n");
+		server_mode = ERR;
 	}	
 
 	/* FRAME: [opcode][filename][0][mode][0] */
@@ -238,6 +249,7 @@ int main(int argc, char *argv[])			//argv[] are args passed from user in termina
 	
 	while((i < sizeof(buffer)) && buffer[i] != '\0' ){
 	printf("%c",buffer[i]);
+	filename_req[i] = buffer[i];	
 	i++;	
 	}
 	
@@ -247,6 +259,31 @@ int main(int argc, char *argv[])			//argv[] are args passed from user in termina
 	printf("%c",buffer[i]);
 	i++;	
 	}
+/*	--------------------------------------------------------- */
+/*	---------------------------------------------------------
+	GET ROUTINES
+	Catagorizes the packet based on request type, then respond
+
+	if (server_mode == RRQ){
+
+		//---------Search for the file requested------//
+		
+
+		rrq.opcode = htons(RRQ);	//opcode = 1 (RRQ) use host-to-network!!
+		sprintf((char *)&(rrq.info), "%s%c%s%c", arg2, '\0', "octet", '\0');
+		//printf("%d",(int)rrq.opcode);	
+		
+		if((n = sendto(s,&rrq,24,0,res->ai_addr, res->ai_addrlen))==-1){
+			perror("Sending command to server failed.");	//if send fails, quit send process	
+			exit(1);
+		}
+
+	}else if (server_mode == RRQ){
+
+	}else if (server_mode == ERR){
+	
+	}*/
+	
 
 /*	ALL PREVIOUS ROUTINES!------------------------------------
 	while (bl <5 && b>=0 && s>=0)
