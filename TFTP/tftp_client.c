@@ -7,6 +7,7 @@
    Name:	Matthew de Neef
    Stu. Num.	212503024			*/
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <netdb.h>
 #include <arpa/inet.h>
@@ -83,7 +84,7 @@
 	int filetype;					//0=text, 1=binary
 int main(int argc, char *argv[])			//argv[] are args passed from user in terminal
 {
-	char *inarg;	
+	char *inarg[60];	
 	char *arg[3];					//accepts input args from user
 
 	char *saveptr;	
