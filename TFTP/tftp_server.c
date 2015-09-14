@@ -11,6 +11,7 @@
    Name:	Matthew de Neef
    Stu. Num.	212503024			*/
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <netdb.h>
 #include <arpa/inet.h>
@@ -57,6 +58,7 @@ int n;
 
 	error_packet errpack;
 	char* perr = (char*)&errpack; 
+
 	//GENERIC DATA PACKET
 	struct sockaddr_in dgram_dest;			//datagram destination
 	char *msg_tosend;				//string of message to send
@@ -65,7 +67,7 @@ int n;
 
 	/* for receiving data packets from a client*/
 	struct sockaddr_storage incoming_addr;		//storage for incoming address	
-	char *filename_req;	
+	char filename_req[TFTP_BUFFER_LEN];	
 	char buffer[TFTP_BUFFER_LEN];				//string for received message
 	int recvmsg_len;				//received length
 	int bytes_recv;					//buffer to receive
@@ -84,6 +86,17 @@ int n;
 
 	/*mode of operation*/
 	int server_mode;
+
+/*stub to append to strings */
+int  append(char*s, size_t size, char c) {
+     if(strlen(s) + 1 >= size) {
+          return 1;
+     }
+     int len = strlen(s);
+     s[len] = c;
+     s[len+1] = '\0';
+     return 0;
+}
 
 int main(int argc, char *argv[])			//argv[] are args passed from user in terminal
 {
@@ -252,6 +265,7 @@ int main(int argc, char *argv[])			//argv[] are args passed from user in termina
 	filename_req[i] = buffer[i];	
 	i++;	
 	}
+	filename_req[i+1] = '\0';		//truncate filename
 	
 	printf("\nMode:\t\t");
 	i+=1;				//advance pointer
@@ -259,30 +273,48 @@ int main(int argc, char *argv[])			//argv[] are args passed from user in termina
 	printf("%c",buffer[i]);
 	i++;	
 	}
+
+	
 /*	--------------------------------------------------------- */
 /*	---------------------------------------------------------
 	GET ROUTINES
-	Catagorizes the packet based on request type, then respond
+	Catagorizes the packet based on request type, then respond*/
+	
+	i=0;
+	while(i<sizeof(filename_req)){	
+	printf("%c",filename_req[i]);	
+	i++;
+	}
 
 	if (server_mode == RRQ){
 
 		//---------Search for the file requested------//
-		
+		if((fopen(filename_req,"rb")==NULL)){
+			printf("\nFile not found, sending error");
+			errpack.opcode = htons(ERR);
+			errpack.error_code = htons(NOTFOUNDERR);
+			sprintf((char *)&(errpack.error_msg), "%s%c",errormsg[NOTFOUNDERR],'\0');
 
-		rrq.opcode = htons(RRQ);	//opcode = 1 (RRQ) use host-to-network!!
-		sprintf((char *)&(rrq.info), "%s%c%s%c", arg2, '\0', "octet", '\0');
+			if((n = sendto(s,&errpack,24,0,res->ai_addr, res->ai_addrlen))==-1){
+			perror("Sending command to server failed.");}	//if send fails, quit send process	
+		}else{
+			printf("\nFile found, sending data");
+			
+		}
+		//rrq.opcode = htons(RRQ);	//opcode = 1 (RRQ) use host-to-network!!
+		//sprintf((char *)&(rrq.info), "%s%c%s%c", arg2, '\0', "octet", '\0');
 		//printf("%d",(int)rrq.opcode);	
 		
-		if((n = sendto(s,&rrq,24,0,res->ai_addr, res->ai_addrlen))==-1){
-			perror("Sending command to server failed.");	//if send fails, quit send process	
-			exit(1);
-		}
+		//if((n = sendto(s,&rrq,24,0,res->ai_addr, res->ai_addrlen))==-1){
+		//	perror("Sending command to server failed.");	//if send fails, quit send process	
+		//	exit(1);
+		//}
 
 	}else if (server_mode == RRQ){
 
 	}else if (server_mode == ERR){
 	
-	}*/
+	}
 	
 
 /*	ALL PREVIOUS ROUTINES!------------------------------------
