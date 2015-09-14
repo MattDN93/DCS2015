@@ -16,7 +16,7 @@
 #ifndef _TFTP_H
 #define _TFTP_H
 
-enum packet_type {RRQ=1, WRQ, DATA, ACK, ERROR};
+enum packet_type {RRQ=1, WRQ=2, DATA=3, ACK=4, ERROR=5};
 
 enum filemode {NETASCII, OCTET, MAIL};
 static char *filemode[] = {

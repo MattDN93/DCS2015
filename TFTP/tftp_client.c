@@ -26,6 +26,10 @@
 
 #define TEXT 0
 #define BINARY 1
+
+#define GET 6
+#define PUT 7
+
 	/*sockets method*/
 	//void startSockets(char *,char * , char *,struct addrinfo, struct addrinfo*);
 	
@@ -43,6 +47,7 @@
 	char *prottype;	
 	
 	/* for sending data these fields are needed */
+	int getput = GET;					//set operation	
 	//RRQ PACKET
 	generic_packet rrq;      			// request packet
        	char* prrq = (char*)&rrq;  			// pointer to rrq packet 	
@@ -123,14 +128,18 @@ do{
 	}
 
 	if (arg2 == NULL){			//must have 3 args before checing validity
-	printf("usage: <hostname to connect to> GET <filename>. Try again.\n");
+	printf("usage: <hostname to connect to> GET|PUT <filename>. Try again.\n");
 	cont = 1;}
 	
 	if(arg2!=NULL){			//this only runs if we have all 3 args
 		if ((strstr(arg1,"GET")==NULL)&&(strstr(arg1,"get")==NULL)){
-		printf("GET command missing. Try again.\n");
-		cont = 1;}
+			getput = PUT;
+			if((strstr(arg1,"PUT")==NULL)&&(strstr(arg1,"put")==NULL)){	
+				printf("GET/PUT command missing. Try again.\n");
+				cont = 1;}
+			}
 	}
+	
 
 	if(arg2!=NULL && arg1!=NULL){
 		if (arg0 == "\n\0"){			//only runs if 3 args != NULL
@@ -264,14 +273,14 @@ do{
 		allows UDP packet to have dest IP addr and defines its length.
 		in this case we only send the server GET <filename>
 		
-		RRQ form (sprintf)	
+		RRQ/WRQ form (sprintf)	
 		[opcode=1][filename (arg2)][0][mode][0]
-		
+		[opcode=2][filename (arg2)][0][mode][0]
 		s is the stored socket descriptor for this connection
 
 		OUTPUT: # bytes sent; error condition if fail		
 		*/
-
+		if(getput == GET){
 		rrq.opcode = htons(RRQ);	//opcode = 1 (RRQ) use host-to-network!!
 		sprintf((char *)&(rrq.info), "%s%c%s%c", arg2, '\0', "octet", '\0');
 		//printf("%d",(int)rrq.opcode);	
@@ -282,7 +291,22 @@ do{
 		}
 
 		//if no error, show stats
-		printf("sent %d bytes to %s\n",bytes_sent,arg0);
+		printf("sent %d bytes to %s\n",n,arg0);
+		}//end get
+
+		
+		if(getput == PUT){
+		wrq.opcode = htons(WRQ);	//opcode = 2 (WRQ) use host-to-network!!
+		sprintf((char *)&(wrq.info), "%s%c%s%c", arg2, '\0', "octet", '\0');
+
+		if((n = sendto(s,&wrq,24,0,res->ai_addr, res->ai_addrlen))==-1){
+			perror("Sending command to server failed.");	//if send fails, quit send process	
+			exit(1);
+		}
+
+		//if no error, show stats
+		printf("sent %d bytes to %s\n",n,arg0);
+		}//end get
 
 		//freeaddrinfo(res);					//we're done with server port/addrinfo
 		//-----------------------------------------------------------------------------------------------
@@ -304,6 +328,7 @@ do{
 		incoming_addr_len = sizeof(incoming_addr);		//make space in mem for struct
 		
 		//continuous process for all data blocks
+
 	//RECEVING DATA PROCESS--------------------------------------------------------
 	while (cont_recv > 0){				//as long as server messages non-empty, receive them
 		//receive data!

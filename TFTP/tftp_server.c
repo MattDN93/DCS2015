@@ -66,7 +66,7 @@ int n;
 	int bytes_sent;					//counter for bytes sent
 
 	/* for receiving data packets from a client*/
-	struct sockaddr_storage incoming_addr;		//storage for incoming address	
+	struct sockaddr_storage incoming_addr;		//storage for incoming address
 	char filename_req[TFTP_BUFFER_LEN];	
 	char buffer[TFTP_BUFFER_LEN];				//string for received message
 	int recvmsg_len;				//received length
@@ -96,6 +96,16 @@ int  append(char*s, size_t size, char c) {
      s[len] = c;
      s[len+1] = '\0';
      return 0;
+}
+
+// from Beej's guide - getting the IP address of client
+void *get_in_addr(struct sockaddr *sa)
+{
+    if (sa->sa_family == AF_INET) {
+        return &(((struct sockaddr_in*)sa)->sin_addr);
+    }
+
+    return &(((struct sockaddr_in6*)sa)->sin6_addr);
 }
 
 int main(int argc, char *argv[])			//argv[] are args passed from user in terminal
@@ -219,29 +229,57 @@ int main(int argc, char *argv[])			//argv[] are args passed from user in termina
 	s is the stored socket descriptor for this connection
 
 							*/
+
+	/*if (listen(s, BACKLOG) == -1) {				//if we have reached the backlog for listening, quit
+        perror("listen");
+        exit(1);
+    	}*/
+
+	
 	struct sockaddr_storage incoming_addr;			//struct for incoming
 	socklen_t incoming_addr_len;				//incoming size
 	incoming_addr_len = sizeof(incoming_addr);
+	
+	/* ----------Fork Socket Descriptor-----------------
+	Purpose:	Create a new process upon receiving client packet
+			Allows original port to remain open for other connections
+			new socket descripter will do all the data transfer
+										*/
+
+	/*new_sd = accept(s, (struct sockaddr *)incoming_addr, &incoming_addr_len);
+        if (new_sd == -1) {					//essentially create a new socket descriptor
+            perror("accept");
+            continue;
+        }*/
+
 
 /*	---------------------------------------------------------
-	INFORMATIONAL: Shows info about the type of packet received */
+	INFORMATIONAL: Shows info about the type of packet received 
+		Purpose: 	Shows the type of TFTP packet (WRQ, RRQ, ERR)
+				Shows IP address of client
+				Filename to read/write
+									*/
 
-	//DEBUG BASIC CODE
+	//receive the first packet from the client & address details
 	if ((bytes_recv = recvfrom(s, buffer, TFTP_BUFFER_LEN-1 , 0,
         (struct sockaddr *)&incoming_addr, &incoming_addr_len)) == -1) {
         perror("Receive error");
         exit(1);
     	}
 	
+	//Allows server to display IP address of client
+	inet_ntop(incoming_addr.ss_family, get_in_addr((struct sockaddr *)&incoming_addr),ipstr, sizeof(ipstr));
+        printf("Server: Connection from: %s\n", ipstr);
+	
+	//Displays size of the packet
 	printf("Server: packet is %d bytes long\n", bytes_recv);
     	//buffer[bytes_recv] = '\0';
-    	printf("Server: packet contains \"%s\"\n", buffer);
 	printf("---------Packet Information-------\n");
 	int opcode;
 	opcode = buffer[1] ;
 	printf("Opcode:\t\t%d\n",buffer[1]);
 
-	if(opcode ==1){			//we have a RRQ so store it
+	if(opcode == 1){			//we have a RRQ so store it
 		rrq.opcode = htons(RRQ);
 		printf("Type:\t\tRRQ\n");
 		server_mode = RRQ;
@@ -279,10 +317,10 @@ int main(int argc, char *argv[])			//argv[] are args passed from user in termina
 /*	---------------------------------------------------------
 	GET ROUTINES
 	Catagorizes the packet based on request type, then respond*/
-	
+	//buffer the filename into its own char array
 	i=0;
 	while(i<sizeof(filename_req)){	
-	printf("%c",filename_req[i]);	
+	//printf("%c",filename_req[i]);	
 	i++;
 	}
 
@@ -310,7 +348,7 @@ int main(int argc, char *argv[])			//argv[] are args passed from user in termina
 		//	exit(1);
 		//}
 
-	}else if (server_mode == RRQ){
+	}else if (server_mode == WRQ){
 
 	}else if (server_mode == ERR){
 	
