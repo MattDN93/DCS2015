@@ -25,6 +25,7 @@
 
 #define TFTP_SERVER_PORT "2804"					//well known port for TFTP
 #define TFTP_BUFFER_LEN 512				//length opf data packets in TFTP
+#define FBUFFER_LEN 10000000				//max buffer size
 
 #define RRQ 1
 #define WRQ 2
@@ -83,6 +84,7 @@ int n;
 	/*file management */
 	FILE *filePtr;					///pointer for file access
 	int filetype;					//0=text, 1=binary
+	char *fbuffer;			//file buffer
 
 	/*mode of operation*/
 	int server_mode;
@@ -202,7 +204,7 @@ int main(int argc, char *argv[])			//argv[] are args passed from user in termina
 		printf("Socket bound to port %s successfully\n", TFTP_SERVER_PORT);
 	}	
 
-	freeaddrinfo(res);
+	//freeaddrinfo(res);
 	
 	/*-----------------------------------------------------*/
 	/*-----------------------------------------------------
@@ -316,28 +318,62 @@ int main(int argc, char *argv[])			//argv[] are args passed from user in termina
 /*	--------------------------------------------------------- */
 /*	---------------------------------------------------------
 	GET ROUTINES
-	Catagorizes the packet based on request type, then respond*/
+	Catagorizes the packet based on request type, then respond
+	If RRQ:	Accept filename, try find file, if not found, assemble 
+		error packet and return it. Use incoming_addr to get correct port
+		If found, split data into 512 byte packets and send. Only send
+		next packet if the ACK for it has been received.
+	*/
+
 	//buffer the filename into its own char array
 	i=0;
 	while(i<sizeof(filename_req)){	
-	//printf("%c",filename_req[i]);	
+	printf("%c",filename_req[i]);	
 	i++;
 	}
 
 	if (server_mode == RRQ){
 
 		//---------Search for the file requested------//
-		if((fopen(filename_req,"rb")==NULL)){
+		if(((filePtr = fopen("debug","rb"))==NULL)){
+			//assemble the error package for the client
 			printf("\nFile not found, sending error");
 			errpack.opcode = htons(ERR);
 			errpack.error_code = htons(NOTFOUNDERR);
 			sprintf((char *)&(errpack.error_msg), "%s%c",errormsg[NOTFOUNDERR],'\0');
 
-			if((n = sendto(s,&errpack,24,0,res->ai_addr, res->ai_addrlen))==-1){
-			perror("Sending command to server failed.");}	//if send fails, quit send process	
+			if((n = sendto(s,&errpack,24,0,(struct sockaddr *)&incoming_addr, incoming_addr_len))==-1){
+			perror("Sending failed");	//if send fails, quit send process	
+			exit(1);}					//if send fails, quit send process	
 		}else{
+			//prepare to send the file!
+			//read file into buffer
 			printf("\nFile found, sending data");
-			
+			if ( filePtr != NULL )
+  			{
+    			fseek(filePtr, 0L, SEEK_END);
+    				long s = ftell(filePtr);
+    				rewind(filePtr);
+    				fbuffer = malloc(s);
+    				if ( fbuffer != NULL )
+    				{
+      					fread(fbuffer, s, 1, filePtr);
+     					// we can now close the file
+      					fclose(filePtr); filePtr = NULL;			
+				}
+			}
+			//now file is in buffer, segment it in 512 bytes
+			//assemble data packet!
+			int i,blkcount;
+			i=0;blkcount=0;
+			data->opcode = htons(DATA);
+			data->block_number = i;
+			for(blkcount=0;blkcount<512;blkcount++)
+			{
+				data->data[blkcount] = fbuffer[blkcount];
+			}
+			bytes_sent = sendto(s, (void*)data, 558, 0,(struct sockaddr *)&incoming_addr, incoming_addr_len);
+				
 		}
 		//rrq.opcode = htons(RRQ);	//opcode = 1 (RRQ) use host-to-network!!
 		//sprintf((char *)&(rrq.info), "%s%c%s%c", arg2, '\0', "octet", '\0');
