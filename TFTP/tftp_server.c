@@ -302,10 +302,10 @@ int main(int argc, char *argv[])			//argv[] are args passed from user in termina
 	
 	while((i < sizeof(buffer)) && buffer[i] != '\0' ){
 	printf("%c",buffer[i]);
-	filename_req[i] = buffer[i];	
+	filename_req[i-2] = buffer[i];	
 	i++;	
 	}
-	filename_req[i+1] = '\0';		//truncate filename
+	filename_req[i-1] = '\0';		//truncate filename
 	
 	printf("\nMode:\t\t");
 	i+=1;				//advance pointer
@@ -326,16 +326,12 @@ int main(int argc, char *argv[])			//argv[] are args passed from user in termina
 	*/
 
 	//buffer the filename into its own char array
-	i=0;
-	while(i<sizeof(filename_req)){	
-	printf("%c",filename_req[i]);	
-	i++;
-	}
+
 
 	if (server_mode == RRQ){
 
 		//---------Search for the file requested------//
-		if(((filePtr = fopen("debug","rb"))==NULL)){
+		if(((filePtr = fopen(filename_req,"rb"))==NULL)){
 			//assemble the error package for the client
 			printf("\nFile not found, sending error");
 			errpack.opcode = htons(ERR);
