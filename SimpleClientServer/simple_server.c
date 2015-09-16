@@ -2,11 +2,15 @@
 		SERVER STUB
 		uses send commands to return
 				
-		*C stub to test creation of sockets
-		*Listens for connection on port 2804
-		*Use "socket_connect localhost 2804" in another terminal
-		to test it!
-		*NEW: telnet to this server on 2804 and see reply! 
+	FEATURES:	*Allows clients to connect on port 2804
+			*Not necessary to supply runtime args
+			*forks appropriate socket descriptor
+			*Sends client options [only if using built-in TELNET]:
+				-client sending server 'about' returns an about menu
+				-client sending server 'chargen' returns a chargen response
+			*Server shows all received data (anything typed in client)
+			*Shows details of connection and data bytes send/received
+			*Uses TCP socket connections, credit to Beej's guide for framework
    Module:	DCS 2015 ENEL4CC
    Name:	Matthew de Neef
    Stu. Num.	212503024			*/
@@ -28,6 +32,7 @@
 
 int main(int argc, char *argv[])			//argv[] are args passed from user in terminal
 {
+	//-------------------------INITIALIZATION-------------------------------------
 	struct addrinfo hints, *res, *p;		//declares a struct of type addrinfo 
 	int status;					//integer for return flags of functions
 	int s,b,c,a;					//socket descriptor/ connect result
@@ -53,6 +58,8 @@ int main(int argc, char *argv[])			//argv[] are args passed from user in termina
 	int recvmsg_len;				//received length
 	int bytes_recv;					//buffer to receive
 	
+
+	//-------------------------GET ADDRESS PARAMS-------------------------------------
 	/* mandatory - fill in the hints structure
 		       specifies which filters to use when fetching address info
 			-NOTE: this is an addrinfo struct so it has:
@@ -80,31 +87,24 @@ int main(int argc, char *argv[])			//argv[] are args passed from user in termina
 		fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(status));
 		return 2;
 	}
-
-	//Debug only: getaddrinfo("www.example.com", "http", &hints, &res);
 	
-	//dest = argv[1];					//assign input args to dest h/n
-	//destport = argv[2];				//...or port respectively
-
-	
+	//-------------------------INFORMATIONAL-------------------------------------	
 	printf("Opening socket to listen on port: %s\n\n", LOCALPORT);		//else show socket
 
 	if(res->ai_family == AF_INET6){inettype = "IPv6";}else{inettype = "IPv4";}
 	if(res->ai_socktype == SOCK_DGRAM){socktype = "Datagram";}else{socktype = "Stream";}
 	if(res->ai_protocol == 6){prottype = "TCP";}else{prottype = "UDP";}
 	
-	//printf("%d\n",res->ai_family);
-	//printf("%d\n",res->ai_socktype);
-	//printf("%d\n",res->ai_protocol);
 	printf("family: %s \n socket type: %s \n protocol: %s \n",inettype,socktype,prottype);
 	
-	/* action section (socket decriptor = s)*/
+	//-------------------------SOCKET CONENCTION-------------------------------------	
+	// Creates a socket with populated addresses from getaddrinfo
+	// Binds the socket to port 2804
 	s = socket(res->ai_family, res->ai_socktype, res->ai_protocol);	//tries to pass to socket()
 	b = bind(s,res->ai_addr,res->ai_addrlen);	
 		
-	//c = connect(s, res->ai_addr, res->ai_addrlen);
-	/* end action section*/
 
+	//-------------------------ERROR CHECKING-------------------------------------
 	if (s==-1){
 		printf("Socket Creation Failed. Reason:\n");		//if socket failed
 		fprintf(stderr,"\n '%s.' \n",gai_strerror(s));	//prints error message
@@ -123,7 +123,7 @@ int main(int argc, char *argv[])			//argv[] are args passed from user in termina
 
 	/*now listen for incoming...*/
 	
-	
+	//-------------------------CONNECTION SEND/RECIEVE-------------------------------------
 	while (bl <5 && b>=0 && s>=0)
 	{	
 		printf("\nnow listening on port...\n");	
@@ -140,7 +140,7 @@ int main(int argc, char *argv[])			//argv[] are args passed from user in termina
 
 		/*send welcome to client*/
 		
-		msg_tosend = "DCS 2015 Sockets Tut 1; Hello World!!";	//msg to send to user
+		msg_tosend = "\nDCS 2015 Sockets Tut 1; Hello World!!";	//msg to send to user
 		sndmsg_len = strlen(msg_tosend);			//set msg length
 		bytes_sent = send(new_sd,msg_tosend,sndmsg_len,0);
 		msg_tosend = "\nType 'about' to get details about this server.\n";	//send it!
@@ -149,9 +149,14 @@ int main(int argc, char *argv[])			//argv[] are args passed from user in termina
 		msg_tosend = "\nType 'chargen' to get a chargen response.\n";	//send it!
 		sndmsg_len = strlen(msg_tosend);		
 		bytes_sent += send(new_sd,msg_tosend,sndmsg_len,0);
+		msg_tosend = "\nNOTE: If running the custom client, this doesn't apply. Chargen is starting now.\n";	//send it!
+		sndmsg_len = strlen(msg_tosend);		
+		bytes_sent += send(new_sd,msg_tosend,sndmsg_len,0);
 
-		/* wait for client to respond 
-		   NOTE: we use the NEW socket file descriptor to communicate*/
+		//-------------------------DETAILS OF CONENCTION-------------------------------------
+		// This displays details about anything the client is sending 
+		// Returns info messages based on client request. Sends required chargen response if 
+		// client requests it.		
 		while (bytes_recv != 0){
 			bytes_recv = recv(new_sd,msg_received,recvmsg_len,0);
 			
@@ -176,7 +181,7 @@ int main(int argc, char *argv[])			//argv[] are args passed from user in termina
 			bytes_sent = send(new_sd,msg_tosend,sndmsg_len,0);
 			}
 
-			if(strstr(msg_received,"chargen")!=NULL) //about found in request
+			if(strstr(msg_received,"chargen")!=NULL) //CHARGEN found in request
 			{
 			printf("\nsending chargen response!");
 			while(1)
@@ -201,6 +206,10 @@ int main(int argc, char *argv[])			//argv[] are args passed from user in termina
 		   be nonzero to prevent connection closing */
 		msg_received = "";		
 		bytes_recv = 1;
+		//Close socket descriptors in case user ^C out, else socket won't close
+		close(new_sd);
+		close(s);
+		//New sock file descriptors will be created every connection, so can close this session
 	}
 
 	printf("\nBacklog limit reached, closing.\n");
@@ -208,10 +217,6 @@ int main(int argc, char *argv[])			//argv[] are args passed from user in termina
 	close(new_sd);
 	close(s);
 	
-	/*if(c == -1){
-		printf("\nconnection failed. Reason: %s\n",gai_strerror(c));
-	}else{ 
-		printf("Socket connected to %s on port %s successfully\n", dest, destport);
-	}*/
+
 	
 }
