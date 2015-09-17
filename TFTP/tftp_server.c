@@ -1,12 +1,12 @@
-/* Program:	
+/* Program:
 		SERVER STUB
 		uses send commands to return
-				
+
 		*C stub to test creation of sockets
 		*Listens for connection on port 2804
 		*Use "socket_connect localhost 2804" in another terminal
 		to test it!
-		*NEW: telnet to this server on 2804 and see reply! 
+		*NEW: telnet to this server on 2804 and see reply!
    Module:	DCS 2015 ENEL4CC
    Name:	Matthew de Neef
    Stu. Num.	212503024			*/
@@ -29,6 +29,7 @@
 
 #define RRQ 1
 #define WRQ 2
+#define ACK 4
 #define ERR 5
 
 #define TEXT 0
@@ -46,8 +47,8 @@ int n;
 	int s,c,b;					//socket descriptor/ connect result
 	char *inettype;					//friendly names for getaddrinfo params
 	char *socktype;
-	char *prottype;	
-	
+	char *prottype;
+
 	/* the server does not send R/WRQs but structs exist to receive them */
 	//RRQ PACKET
 	generic_packet rrq;      			// request packet
@@ -55,10 +56,10 @@ int n;
 
 	//WRQ PACKET
 	generic_packet wrq;      			// request packet
-       	char* pwrq = (char*)&wrq;  			// pointer to rrq packet		
+       	char* pwrq = (char*)&wrq;  			// pointer to rrq packet
 
 	error_packet errpack;
-	char* perr = (char*)&errpack; 
+	char* perr = (char*)&errpack;
 
 	//GENERIC DATA PACKET
 	struct sockaddr_in dgram_dest;			//datagram destination
@@ -68,19 +69,19 @@ int n;
 
 	/* for receiving data packets from a client*/
 	struct sockaddr_storage incoming_addr;		//storage for incoming address
-	char filename_req[TFTP_BUFFER_LEN];	
+	char filename_req[TFTP_BUFFER_LEN];
 	char buffer[TFTP_BUFFER_LEN];				//string for received message
 	int recvmsg_len;				//received length
 	int bytes_recv;					//buffer to receive
 	int new_sd;					//receiving socket descriptor
 	int cont_recv=1;				//flag to set if data must still be received
 	int total_size;				//total Rx size
-	
+
 	/*using header struct definitions for predefined packets */
 	data_packet *data = (data_packet*)buffer;		//data from buffer
 	ack_packet *pack = (ack_packet*)buffer;     		//for returning ACKs for data received
-	error_packet *error = (error_packet*)buffer;		//for handling errors to client		
-	
+	error_packet *error = (error_packet*)buffer;		//for handling errors to client
+
 	/*file management */
 	FILE *filePtr;					///pointer for file access
 	int filetype;					//0=text, 1=binary
@@ -115,15 +116,15 @@ int main(int argc, char *argv[])			//argv[] are args passed from user in termina
 
 	int cont=0;					//var to indicate continuing execution
 
-	struct addrinfo hints, *res, *p;		//declares a struct of type 
+	struct addrinfo hints, *res, *p;		//declares a struct of type
 	int status,rv;					//integer for return flags of functions
 	memset(&hints, 0, sizeof hints);		//create memory for hints
 
 	int errno;					//error code
-	
+
 	//Welcome user with a prompt'
 	printf("TFTP Server | Matthew de Neef | 212503024\n");
-	
+
 	/*	Getting address info and hints
 		-----------------------------------------------------*/
 	/* mandatory - fill in the hints structure
@@ -135,20 +136,20 @@ int main(int argc, char *argv[])			//argv[] are args passed from user in termina
 			ai_protocol
 			ai_addrlen (struct)
 			*ai_addr
-			*ai_canonname 					
-			
+			*ai_canonname
+
 	To use BIND() set 1st arg for getaddrinfo = NULL, and set hints.ai_flags = AI_PASSIVE
 	To use CONNECT set 1st arg for getaddrinfo != NULL, and disable hints.ai_flags = AI_PASSIVE*/
 
-	
+
 	hints.ai_family = AF_UNSPEC; 			// AF_INET or AF_INET6 to force version
 	hints.ai_socktype = SOCK_DGRAM;			//type of socket-we want UDP!
 	hints.ai_flags = AI_PASSIVE;			//use current protocol address
 	//hints.ai_protocol = 0;			//any protocol accepted
-	
-	//GETTING ADDRESS INFO 
 
-	/*get address info for host 	
+	//GETTING ADDRESS INFO
+
+	/*get address info for host
 	ARGUMENTS:	1st: IP address of host to get info (NULL as a server)
 			2nd: Port, fixed at 69 for TFTP (use 2804 for custom server)
 			3rd: hints struct with socket/protocol we require
@@ -156,7 +157,7 @@ int main(int argc, char *argv[])			//argv[] are args passed from user in termina
 	PURPOSE:	passes the hints struct with connection requirements
 			to network. We want datagram and UDP service
 			if the reqs match what thTFTP_BUFFER_LENe network has, we're OK*/
-	
+
 
 	if ((rv = getaddrinfo(NULL, TFTP_SERVER_PORT, &hints, &res)) != 0) //errorcheck getaddrinfo
 	{
@@ -165,9 +166,9 @@ int main(int argc, char *argv[])			//argv[] are args passed from user in termina
 	}
 	//dest = argv[1];					//assign input args to dest h/n
 	//destport = argv[2];				//...or port respectively
-	
+
 	/*-----------------------------------------------------*/
-	/*---------------------------------------------------- 
+	/*----------------------------------------------------
 		socket creation & error handling	*/
 
 	/* loop through all the results and bind to the first we can
@@ -192,7 +193,7 @@ int main(int argc, char *argv[])			//argv[] are args passed from user in termina
 	if (s==-1){
 		printf("Socket Creation Failed. Reason:\n");		//if socket failed
 		fprintf(stderr,"\n '%s.' \n",gai_strerror(s));	//prints error message
-		close(s);	
+		close(s);
 		exit(1);
 	}
 
@@ -200,12 +201,12 @@ int main(int argc, char *argv[])			//argv[] are args passed from user in termina
 		printf("\nPort binding failed. Reason: %s\n",gai_strerror(b));
 		close(s);
 		exit(1);
-	}else{ 
+	}else{
 		printf("Socket bound to port %s successfully\n", TFTP_SERVER_PORT);
-	}	
+	}
 
 	//freeaddrinfo(res);
-	
+
 	/*-----------------------------------------------------*/
 	/*-----------------------------------------------------
 		Diagnostic and debug information		*/
@@ -214,7 +215,7 @@ int main(int argc, char *argv[])			//argv[] are args passed from user in termina
 	if(res->ai_family == AF_INET6){inettype = "IPv6";}else{inettype = "IPv4";}
 	if(res->ai_socktype == SOCK_DGRAM){socktype = "Datagram";}else{socktype = "Stream";}
 	if(res->ai_protocol == 6){prottype = "TCP";}else{prottype = "UDP";}
-	
+
 	printf("Created socket successfully using %s, in %s mode using the %s protocol.\n\n",inettype,socktype,prottype);
 	printf("\nWaiting for incoming...");
 	/*-----------------------------------------------------
@@ -222,10 +223,10 @@ int main(int argc, char *argv[])			//argv[] are args passed from user in termina
 	*we expect the first incoming data packet to be a RRQ or a WRQ
 	*If it is neither, simply drop the packet
 	*Packet format:
-		RRQ form (sprintf)	
+		RRQ form (sprintf)
 		[opcode=1][filename][0][mode=octet][0]
 
-		WRQ form (sprintf)	
+		WRQ form (sprintf)
 		[opcode=2][filename][0][mode=octet][0]
 
 	s is the stored socket descriptor for this connection
@@ -237,11 +238,11 @@ int main(int argc, char *argv[])			//argv[] are args passed from user in termina
         exit(1);
     	}*/
 
-	
+
 	struct sockaddr_storage incoming_addr;			//struct for incoming
 	socklen_t incoming_addr_len;				//incoming size
 	incoming_addr_len = sizeof(incoming_addr);
-	
+
 	/* ----------Fork Socket Descriptor-----------------
 	Purpose:	Create a new process upon receiving client packet
 			Allows original port to remain open for other connections
@@ -256,7 +257,7 @@ int main(int argc, char *argv[])			//argv[] are args passed from user in termina
 
 
 /*	---------------------------------------------------------
-	INFORMATIONAL: Shows info about the type of packet received 
+	INFORMATIONAL: Shows info about the type of packet received
 		Purpose: 	Shows the type of TFTP packet (WRQ, RRQ, ERR)
 				Shows IP address of client
 				Filename to read/write
@@ -268,11 +269,11 @@ int main(int argc, char *argv[])			//argv[] are args passed from user in termina
         perror("Receive error");
         exit(1);
     	}
-	
+
 	//Allows server to display IP address of client
 	inet_ntop(incoming_addr.ss_family, get_in_addr((struct sockaddr *)&incoming_addr),ipstr, sizeof(ipstr));
         printf("Server: Connection from: %s\n", ipstr);
-	
+
 	//Displays size of the packet
 	printf("Server: packet is %d bytes long\n", bytes_recv);
     	//buffer[bytes_recv] = '\0';
@@ -294,32 +295,32 @@ int main(int argc, char *argv[])			//argv[] are args passed from user in termina
 		errpack.opcode = htons(ERR);
 		printf("Type:\t\tERROR\n");
 		server_mode = ERR;
-	}	
+	}
 
 	/* FRAME: [opcode][filename][0][mode][0] */
 	int i=2;			//set pointers where each element starts
 	printf("Filename:\t");
-	
+
 	while((i < sizeof(buffer)) && buffer[i] != '\0' ){
 	printf("%c",buffer[i]);
-	filename_req[i-2] = buffer[i];	
-	i++;	
+	filename_req[i-2] = buffer[i];
+	i++;
 	}
 	filename_req[i-1] = '\0';		//truncate filename
-	
+
 	printf("\nMode:\t\t");
 	i+=1;				//advance pointer
 	while((i < sizeof(buffer)) && buffer[i] != '\0' ){
 	printf("%c",buffer[i]);
-	i++;	
+	i++;
 	}
 
-	
+
 /*	--------------------------------------------------------- */
 /*	---------------------------------------------------------
 	GET ROUTINES
 	Catagorizes the packet based on request type, then respond
-	If RRQ:	Accept filename, try find file, if not found, assemble 
+	If RRQ:	Accept filename, try find file, if not found, assemble
 		error packet and return it. Use incoming_addr to get correct port
 		If found, split data into 512 byte packets and send. Only send
 		next packet if the ACK for it has been received.
@@ -339,8 +340,8 @@ int main(int argc, char *argv[])			//argv[] are args passed from user in termina
 			sprintf((char *)&(errpack.error_msg), "%s%c",errormsg[NOTFOUNDERR],'\0');
 
 			if((n = sendto(s,&errpack,24,0,(struct sockaddr *)&incoming_addr, incoming_addr_len))==-1){
-			perror("Sending failed");	//if send fails, quit send process	
-			exit(1);}					//if send fails, quit send process	
+			perror("Sending failed");	//if send fails, quit send process
+			exit(1);}					//if send fails, quit send process
 		}else{
 			//prepare to send the file!
 			//read file into buffer
@@ -355,118 +356,104 @@ int main(int argc, char *argv[])			//argv[] are args passed from user in termina
     				{
       					fread(fbuffer, s, 1, filePtr);
      					// we can now close the file
-      					fclose(filePtr); filePtr = NULL;			
+      					fclose(filePtr); filePtr = NULL;
 				}
 			}
 			//now file is in buffer, segment it in 512 bytes
 			//assemble data packet!
-			int i,blkcount;
-			i=0;blkcount=0;
-			data->opcode = htons(DATA);
-			data->block_number = i;
-			for(blkcount=0;blkcount<512;blkcount++)
-			{
-				data->data[blkcount] = fbuffer[blkcount];
+			int i,j,blkcount;
+			i=0;j=0;			//marks pointer within block
+			blkcount=0;			//number of data blocks
+			int eofmrk=0;			//marks if EOF reached
+		while(eofmrk == 0){
+			data->opcode = htons(DATA);	//sets data opcode to DATA
+			data->block_number = htons(blkcount);
+			printf("\n----Sending block %d,",blkcount+1);
+
+
+
+			for(i=0;i<512;i++){		//clear data array
+				data->data[i]='0';
 			}
-			bytes_sent = sendto(s, (void*)data, 558, 0,(struct sockaddr *)&incoming_addr, incoming_addr_len);
-				
+
+			//populate this data block with file data
+			for(i=0;i<512;i++)
+			{
+                //do a check for the last block -> if endln char
+				if(fbuffer[(512*blkcount)+i] == '\0') {
+				eofmrk=1;
+				data->data[i] = fbuffer[(512*blkcount)+i];
+				data->data[i+1] = '\0';                     //terminate block early!
+				break;}
+
+				data->data[i] = fbuffer[(512*blkcount)+i];  //else just do a normal block
+			}
+
+			//await ACK from client before sending next block
+			bytes_recv = recvfrom(s,buffer,sizeof(buffer),0,(struct sockaddr *)&incoming_addr, &incoming_addr_len);
+			opcode = buffer[1];
+			printf("\nReceived ACK opcode: %d",opcode);
+
+			//only start sending the next block if the ACK is valid!
+			if(opcode == ACK){
+
+				if(pack->block_number == data->block_number){
+					data->block_number += 1;
+					blkcount++;
+                    total_size +=bytes_sent;
+				}
+			}
+
+			//send the data to the client, with error checking
+			printf(" with size: %li.----\n",strlen(data->data));
+			if(eofmrk == 0){        //use full-size packet if it's not the last one
+                if((bytes_sent = sendto(s, (void*)data, 558, 0,(struct sockaddr *)&incoming_addr, incoming_addr_len))==-1)
+                {
+				perror("Data send failed");
+				exit(1);
+                }
+			}
+			else if (eofmrk == 1){  //else use truncated packet length!
+                if((bytes_sent = sendto(s, (void*)data, (strlen(data->data)+46), 0,(struct sockaddr *)&incoming_addr, incoming_addr_len))==-1)
+                {
+				perror("Data send failed");
+				exit(1);
+                }
+
+			}
+
+
+        }//eof noted!
+
+		printf("\n file sent.");
+		printf("\n Total size %d.",total_size);
 		}
 		//rrq.opcode = htons(RRQ);	//opcode = 1 (RRQ) use host-to-network!!
 		//sprintf((char *)&(rrq.info), "%s%c%s%c", arg2, '\0', "octet", '\0');
-		//printf("%d",(int)rrq.opcode);	
-		
+		//printf("%d",(int)rrq.opcode);
+
 		//if((n = sendto(s,&rrq,24,0,res->ai_addr, res->ai_addrlen))==-1){
-		//	perror("Sending command to server failed.");	//if send fails, quit send process	
+		//	perror("Sending command to server failed.");	//if send fails, quit send process
 		//	exit(1);
 		//}
 
 	}else if (server_mode == WRQ){
 
 	}else if (server_mode == ERR){
-	
+
 	}
-	
 
-/*	ALL PREVIOUS ROUTINES!------------------------------------
-	while (bl <5 && b>=0 && s>=0)
-	{	
-		printf("\nnow listening on port...\n");	
-		listen(s,BACKLOG);					//listen on socket we created 
-	
-		//...when connection incoming...
-		incoming_addr_size = sizeof(incoming_addr);		//make space in mem for struct
-		new_sd = accept(s, (struct sockaddr *)&incoming_addr, &incoming_addr_size);
-		bl++;							//accept connection with given parameters
-	
-		printf("\nConnection detected! Forking socket descriptor now...");
-		printf("\nNew connection ready on descriptor %d",new_sd);
-		//TODO: type of connection RRQ or WRQ
-
-		/* wait for client to respond 
-		   NOTE: we use the NEW socket file descriptor to communicate*/
-/*		while (bytes_recv != 0){
-			bytes_recv = recv(new_sd,msg_received,recvmsg_len,0);
-			
-			
-/*			//recvmsg_len = strlen(msg_received);			
-			
-			if ( bytes_recv ==0){printf("\nClient has disconnected!");close(new_sd);break;}
-			else if (bytes_recv == -1){printf("\nError has occurred.");close(new_sd);break;}
-			else {
-			printf("\n------------INCOMING-----------");			
-			printf("\nThis msg: %d bytes received.",bytes_recv - 2);}
-			printf("\n Received: %s",msg_received);
-			printf("\n------------END MESSAGE-----------");
-	
-			/*respond to client requests*/
-
-			
-/*			if(strstr(msg_received,"about")!=NULL) //about found in request
-			{
-			msg_tosend = "\nA basic socket server.\nMatthew de Neef\n 212503024 \n DCS2015\n\n";	//msg to send to user
-			sndmsg_len = strlen(msg_tosend);			//set msg length
-			bytes_sent = send(new_sd,msg_tosend,sndmsg_len,0);
-			}
-
-			if(strstr(msg_received,"chargen")!=NULL) //about found in request
-			{
-			printf("\nsending chargen response!");
-			while(1)
-			{
-				msg_tosend = "!@#$%^&*()_+<>:{}|<>? abcdefghijklmnopqrstuvwxyz ABCDEFGHIJKLMNOPQRSTUVWXYZ 1234567890\n";	//msg to send to user
-				sndmsg_len = strlen(msg_tosend);			//set msg length
-				bytes_sent = send(new_sd,msg_tosend,sndmsg_len,0);
-			}			
-			}
-
-			msg_received[0] = "\0";		//clear the rx buffer
-
-			bytes_recv = 1;		
-		}
-
-		
-		printf("\nA total of %d bytes sent.",bytes_sent);
-		printf("\nThat's %d connections so far.",bl);
-		printf("\n-------------------------------------");
-		
-		/* Reset received buffer and bytecount. Bytecount must
-		   be nonzero to prevent connection closing */
-		//msg_received = "";		
-		//bytes_recv = 1;
-/*	}//endwhile
-
-	end ALL PREVIOUS ROUTINES!------------------------------------*/		
 	printf("\nBacklog limit reached, closing.\n");
-	/* close all socket descriptors*/	
+	/* close all socket descriptors*/
 	close(new_sd);
 	close(s);
-	
+
 	/*if(c == -1){
 		printf("\nconnection failed. Reason: %s\n",gai_strerror(c));
-	}else{ 
+	}else{
 		printf("Socket connected to %s on port %s successfully\n", dest, destport);
 	}*/
-	
+
 }
 
 
