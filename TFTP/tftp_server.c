@@ -24,13 +24,13 @@
 #include "cs_tftp.h"					//standardised declarations for TFTP
 
 #define TFTP_SERVER_PORT "2804"					//well known port for TFTP
-#define TFTP_BUFFER_LEN 512				//length opf data packets in TFTP
+#define TFTP_BUFFER_LEN 558				//length opf data packets in TFTP
 #define FBUFFER_LEN 10000000				//max buffer size
 
-#define RRQ 1
-#define WRQ 2
-#define ACK 4
-#define ERR 5
+#define RRQ 1                       //opcode # for a RRQ
+#define WRQ 2                       //opcode for write req
+#define ACK 4                       //opcode for ack
+#define ERR 5                       //opcode for error
 
 #define TEXT 0
 #define BINARY 1
@@ -206,7 +206,7 @@ int main(int argc, char *argv[])			//argv[] are args passed from user in termina
 	}
 
 	//freeaddrinfo(res);
-
+    // MRDDN 2015 21253024
 	/*-----------------------------------------------------*/
 	/*-----------------------------------------------------
 		Diagnostic and debug information		*/
@@ -301,6 +301,7 @@ int main(int argc, char *argv[])			//argv[] are args passed from user in termina
 
 
 /*	--------------------------------------------------------- */
+// 212503024 Matthew de Neef
 /*	---------------------------------------------------------
 	GET ROUTINES
 	Catagorizes the packet based on request type, then respond
@@ -399,7 +400,7 @@ int main(int argc, char *argv[])			//argv[] are args passed from user in termina
 
 			}
 
-						//await ACK from client before sending next block
+			//await ACK from client before sending next block
 			bytes_recv = recvfrom(s,buffer,sizeof(buffer),0,(struct sockaddr *)&incoming_addr, &incoming_addr_len);
 			opcode = buffer[1];
 			printf("\nReceived ACK opcode: %d",opcode);
@@ -431,8 +432,139 @@ int main(int argc, char *argv[])			//argv[] are args passed from user in termina
 		//}
 
 	}else if (server_mode == WRQ){
+    // 212503024 Matthew de Neef
+        //before receiving first block, send an ACK to bein data transfer
+         pack->opcode = htons((u_short)ACK);				//ACK the file not found!
+         pack->block_number = data->block_number;
 
-	}else if (server_mode == ERR){
+         //send ACK
+                bytes_sent = sendto(s, (void*)pack, 4, 0,(struct sockaddr *)&incoming_addr, incoming_addr_len);
+
+         if (bytes_sent>0)
+                {
+                    printf("\n\nACK sent.\n");
+                }else {printf("ACK failed.\n"); exit(1);}
+
+                //the file can now be created for writing to
+                filename_req[strcspn(filename_req, "\n")] = 0;
+	//----------------------------------
+
+                if((strstr(filename_req,"txt")!=NULL)){			//the filename is a text file!
+                filePtr = fopen("debug_text.txt","w");			//creates file to write to
+                if (filePtr == NULL){ printf("\nFile I/O error.");}
+                filetype = TEXT;					//TEXT FILE
+                }
+
+                else if ((strstr(filename_req,"pic")!=NULL)){			//picture file
+                filePtr = fopen("debug_pic","wb");			//binary write mode!
+                filetype = BINARY;					//BINARY FILE
+                if (filePtr == NULL) {printf("\nFile I/O error.");}
+                }
+
+                else if ((strstr(filename_req,"movie")!=NULL)){			//video file
+                filePtr = fopen("debug_movie","wb");			//binary write mode!
+                filetype = BINARY;					//BINARY FILE
+                    if (filePtr == NULL){ printf("\nFile I/O error.");}
+                }else{
+                //sprintf((char *)&(arg2), "%s%s", arg2, "_received");
+                filePtr = fopen("debug_rx","wb");     //default file case
+                filetype = BINARY;
+                    if (filePtr == NULL){ printf("\nFile I/O error.");
+                    exit(1);
+                        }
+                }
+	//-----------------------------------------------------------------------------------------------
+		/*DATAGRAM RECEIVE & ACK        // MRDDN 2015 21253024
+		using recvfrom(), we expect the first packets to come through
+		as long as there is still data arriving, construct and ACK and return it
+		ACK form (sprintf)
+		[opcode=4][block number]
+
+		s is the stored socket descriptor for this connection
+
+		OUTPUT: sends return ACKs as each block received
+		*/
+
+		//continuous process for all data blocks
+
+	//RECEVING DATA PROCESS--------------------------------------------------------
+            while (cont_recv > 0)
+            {				//as long as server messages non-empty, receive them
+            //receive data!
+                int i=0;
+                for(i=0;i<512;i++)
+                {		//clear data array
+                    data->data[i]='0';
+                }
+
+                bytes_recv = recvfrom(s,buffer,TFTP_BUFFER_LEN,0,(struct sockaddr *)&incoming_addr, &incoming_addr_len);
+
+
+                //error check - does file exist?
+                if((ntohs(data->opcode)) == ERR)
+                {
+                printf("Error: %s\n",data->data);
+                cont_recv = 0;							//exit loop for Rx
+                fclose(filePtr);						//close file I/O
+
+                pack->opcode = htons((u_short)ACK);				//ACK the file not found!
+                pack->block_number = data->block_number;
+
+                close(s);							//close socket
+                exit(0);
+                }
+
+
+                n = bytes_recv - 46;               //account for header overhead
+                data->data[bytes_recv-4] = '\0';
+
+                //add packet size to total
+                total_size += (bytes_recv - 46);   //again header overhead
+
+                //DEBUG output stats
+                printf("\n-----------------------------------------\n");
+                printf("Received packet type %d, block %d, data:\n %s\n",
+                   ntohs(data->opcode), ntohs(data->block_number),
+                   data->data);
+                printf("\n-----------------------------------------\n");
+
+            /*write to text/binary file here*/
+                if(filetype == TEXT)
+                {
+                    fputs(data->data, filePtr);		//write to file
+                }else if (filetype == BINARY)
+                {
+                    fputs(data->data, filePtr);
+                }
+
+                //build ACK for current block and send
+                pack->opcode = htons((u_short)ACK);
+                pack->block_number = data->block_number;
+
+                //send ACK
+                bytes_sent = sendto(s, (void*)pack, 4, 0,(struct sockaddr *)&incoming_addr, incoming_addr_len);
+
+                //check ACK validity
+                if (bytes_sent>0)
+                {
+                    printf("ACK sent.\n");
+                }else printf("ACK failed.\n");
+
+                //check if connection is ready to be closed
+                //if datalength <512 bytes (+46 header), close the socket.
+                //note subtract the last ACK header for total filesize
+                if(n < 512)
+                {
+                    printf("\nFile size: %d bytes\n",total_size ); 			//display total size of file
+                    printf("File received. Check folder for contents. Closing socket\n");
+                    cont_recv = 0;							//exit loop for Rx
+                    fclose(filePtr);						//close file I/O
+                    close(s);							//close socket
+                    exit(0);
+                }							//quit program
+            }//end while loop to receive
+    //end WRQ
+    }else if (server_mode == ERR){
 
 	}
 
@@ -440,7 +572,7 @@ int main(int argc, char *argv[])			//argv[] are args passed from user in termina
 	/* close all socket descriptors*/
 	close(new_sd);
 	close(s);
-
+    // MRDDN 2015 21253024
 	/*if(c == -1){
 		printf("\nconnection failed. Reason: %s\n",gai_strerror(c));
 	}else{
