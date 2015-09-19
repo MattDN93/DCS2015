@@ -160,19 +160,19 @@ do{
 	//----------------------------------
 
 	if((strstr(arg2,"txt")!=NULL)){			//the filename is a text file!
-	filePtr = fopen(sprintf((char *)&(arg2), "%s%s", arg2, "_received.txt"),"w");			//creates file to write to
+	filePtr = fopen("debug_text.txt","w");			//creates file to write to
 	if (filePtr == NULL){ printf("File I/O error.");}
 	filetype = TEXT;					//TEXT FILE
 	}
 
 	else if ((strstr(arg2,"pic")!=NULL)){			//picture file
-	filePtr = fopen((char *)arg2,"wb");			//binary write mode!
+	filePtr = fopen("debug_pic","wb");			//binary write mode!
 	filetype = BINARY;					//BINARY FILE
 	if (filePtr == NULL) {printf("File I/O error.");}
 	}
 
 	else if ((strstr(arg2,"movie")!=NULL)){			//video file
-	filePtr = fopen((char *)arg2,"wb");			//binary write mode!
+	filePtr = fopen("debug_movie","wb");			//binary write mode!
 	filetype = BINARY;					//BINARY FILE
         if (filePtr == NULL){ printf("File I/O error.");}
 	}else{
@@ -270,7 +270,7 @@ do{
 		fprintf(stderr,"\n '%s.' \n",gai_strerror(s));	//prints error message
 		}
 	}
-	else{
+	else{ //socket creation succeeded
 		printf("Created socket successfully using %s, in %s mode using the %s protocol.\n\n",inettype,socktype,prottype);
 
 		//-----------------------------------------------------------------------------------------------
@@ -286,35 +286,21 @@ do{
 
 		OUTPUT: # bytes sent; error condition if fail
 		*/
-		if(getput == GET){
-		rrq.opcode = htons(RRQ);	//opcode = 1 (RRQ) use host-to-network!!
-		sprintf((char *)&(rrq.info), "%s%c%s%c", arg2, '\0', "octet", '\0');
-		//printf("%d",(int)rrq.opcode);
+		if(getput == GET)
+		{
+            rrq.opcode = htons(RRQ);	//opcode = 1 (RRQ) use host-to-network!!
+            sprintf((char *)&(rrq.info), "%s%c%s%c", arg2, '\0', "octet", '\0');
+            //printf("%d",(int)rrq.opcode);
 
-		if((n = sendto(s,&rrq,24,0,res->ai_addr, res->ai_addrlen))==-1){
+            if((n = sendto(s,&rrq,24,0,res->ai_addr, res->ai_addrlen))==-1)
+            {
 			perror("Sending command to server failed.");	//if send fails, quit send process
 			exit(1);
-		}
+            }
 
 		//if no error, show stats
 		printf("sent %d bytes to %s\n",n,arg0);
-		}//end get
 
-
-		if(getput == PUT){
-		wrq.opcode = htons(WRQ);	//opcode = 2 (WRQ) use host-to-network!!
-		sprintf((char *)&(wrq.info), "%s%c%s%c", arg2, '\0', "octet", '\0');
-
-		if((n = sendto(s,&wrq,24,0,res->ai_addr, res->ai_addrlen))==-1){
-			perror("Sending command to server failed.");	//if send fails, quit send process
-			exit(1);
-		}
-
-		//if no error, show stats
-		printf("sent %d bytes to %s\n",n,arg0);
-		}//end get
-
-		//freeaddrinfo(res);					//we're done with server port/addrinfo
 		//-----------------------------------------------------------------------------------------------
 		/*DATAGRAM RECEIVE & ACK
 		using recvfrom(), we expect the first packets to come through
@@ -336,82 +322,112 @@ do{
 		//continuous process for all data blocks
 
 	//RECEVING DATA PROCESS--------------------------------------------------------
-	while (cont_recv > 0){				//as long as server messages non-empty, receive them
+        while (cont_recv > 0){				//as long as server messages non-empty, receive them
 		//receive data!
-        int i=0;
-        for(i=0;i<512;i++){		//clear data array
+            int i=0;
+            for(i=0;i<512;i++)
+            {		//clear data array
 				data->data[i]='0';
 			}
 
-		bytes_recv = recvfrom(s,buffer,TFTP_BUFFER_LEN,0,(struct sockaddr *)&incoming_addr, &incoming_addr_len);
+            bytes_recv = recvfrom(s,buffer,TFTP_BUFFER_LEN,0,(struct sockaddr *)&incoming_addr, &incoming_addr_len);
 
 
-		//error check - does file exist?
-		if((ntohs(data->opcode)) == ERR){
-		printf("Error: %s\n",data->data);
-		cont_recv = 0;							//exit loop for Rx
-		fclose(filePtr);						//close file I/O
+            //error check - does file exist?
+            if((ntohs(data->opcode)) == ERR)
+            {
+            printf("Error: %s\n",data->data);
+            cont_recv = 0;							//exit loop for Rx
+            fclose(filePtr);						//close file I/O
 
-		pack->opcode = htons((u_short)ACK);				//ACK the file not found!
-		pack->block_number = data->block_number;
+            pack->opcode = htons((u_short)ACK);				//ACK the file not found!
+            pack->block_number = data->block_number;
 
-		close(s);							//close socket
-		exit(0);
-		}
+            close(s);							//close socket
+            exit(0);
+            }
 
 
-		n = bytes_recv;
-		data->data[bytes_recv-4] = '\0';
+            n = bytes_recv - 46;               //account for header overhead
+            data->data[bytes_recv-4] = '\0';
 
-		//add packet size to total
-		total_size += bytes_recv;
+            //add packet size to total
+            total_size += (bytes_recv - 46);   //again header overhead
 
-		//DEBUG output stats
-		printf("\n-----------------------------------------\n");
-		printf("Received packet type %d, block %d, data:\n %s\n",
+            //DEBUG output stats
+            printf("\n-----------------------------------------\n");
+            printf("Received packet type %d, block %d, data:\n %s\n",
 		       ntohs(data->opcode), ntohs(data->block_number),
 		       data->data);
-		printf("\n-----------------------------------------\n");
+            printf("\n-----------------------------------------\n");
 
 		/*write to text/binary file here*/
-		if(filetype == TEXT){
-		fputs(data->data, filePtr);		//write to file
-		}else if (filetype == BINARY){
-		fputs(data->data, filePtr);
-		}
+            if(filetype == TEXT)
+            {
+                fputs(data->data, filePtr);		//write to file
+            }else if (filetype == BINARY)
+            {
+                fputs(data->data, filePtr);
+            }
 
-		//build ACK for current block and send
-		pack->opcode = htons((u_short)ACK);
-		pack->block_number = data->block_number;
+            //build ACK for current block and send
+            pack->opcode = htons((u_short)ACK);
+            pack->block_number = data->block_number;
 
-		//send ACK
-		bytes_sent = sendto(s, (void*)pack, 4, 0,(struct sockaddr *)&incoming_addr, incoming_addr_len);
+            //send ACK
+            bytes_sent = sendto(s, (void*)pack, 4, 0,(struct sockaddr *)&incoming_addr, incoming_addr_len);
 
-		//check ACK validity
-		if (bytes_sent>0){
-			printf("ACK sent.\n");
-		}else printf("ACK failed.\n");
+            //check ACK validity
+            if (bytes_sent>0)
+            {
+                printf("ACK sent.\n");
+            }else printf("ACK failed.\n");
 
-		//check if connection is ready to be closed
-		//if datalength <512 bytes (+46 header), close the socket.
-		//note subtract the last ACK header for total filesize
-		if(n < 512){
-			printf("\nFile size: %d bytes\n",total_size-47); 			//display total size of file
-			printf("File received. Check folder for contents. Closing socket\n");
-			cont_recv = 0;							//exit loop for Rx
-			fclose(filePtr);						//close file I/O
-			close(s);							//close socket
-			exit(0);}							//quit program
-	}//end loop to receive
+            //check if connection is ready to be closed
+            //if datalength <512 bytes (+46 header), close the socket.
+            //note subtract the last ACK header for total filesize
+            if(n < 512)
+            {
+                printf("\nFile size: %d bytes\n",total_size ); 			//display total size of file
+                printf("File received. Check folder for contents. Closing socket\n");
+                cont_recv = 0;							//exit loop for Rx
+                fclose(filePtr);						//close file I/O
+                close(s);							//close socket
+                exit(0);
+            }							//quit program
+        }//end loop to receive
 
-		if (bytes_recv == -1)
+    }//end get
+
+		}//end get
+
+        //--------------------DATA PUT ROUTINES------------------------
+		if(getput == PUT)
 		{
-			printf("\nServer response error: %s\n",gai_strerror(errno));
-		}else{
-			printf("\n File received.\n");
-			//close(s);}
-			}
-	}
+            wrq.opcode = htons(WRQ);	//opcode = 2 (WRQ) use host-to-network!!
+            sprintf((char *)&(wrq.info), "%s%c%s%c", arg2, '\0', "octet", '\0');
+
+            if((n = sendto(s,&wrq,24,0,res->ai_addr, res->ai_addrlen))==-1)
+            {
+                perror("Sending command to server failed.");	//if send fails, quit send process
+                exit(1);
+            }
+
+            //if no error, show stats
+            printf("sent %d bytes to %s\n",n,arg0);
+
+            //freeaddrinfo(res);					//we're done with server port/addrinfo
+
+
+            if (bytes_recv == -1)
+            {
+                printf("\nServer response error: %s\n",gai_strerror(errno));
+            }else{
+                printf("\n File received.\n");
+                close(s);
+                }
+        }//END PUT
+
 
 	if(c == -1){
 		printf("\nconnection failed. Reason: %s\n",gai_strerror(c));

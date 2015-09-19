@@ -389,7 +389,9 @@ int main(int argc, char *argv[])			//argv[] are args passed from user in termina
 			}
 			else if (eofmrk == 1)
 			{  //else use truncated packet length!
-                		if((bytes_sent = sendto(s, (void*)data, (strlen(data->data)+46), 0,(struct sockaddr *)&incoming_addr, incoming_addr_len))==-1)
+                sndmsg_len = strlen(data->data);             //send modified packet size + header
+                sndmsg_len += 46;                           //consider header length
+                		if((bytes_sent = sendto(s, (void*)data, sndmsg_len, 0,(struct sockaddr *)&incoming_addr, incoming_addr_len))==-1)
                 		{
 				perror("Data send failed");
 				exit(1);
