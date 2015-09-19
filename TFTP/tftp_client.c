@@ -20,7 +20,7 @@
 #include "cs_tftp.h"					//standardised declarations for TFTP
 
 #define TFTP_PORT "2804"					//well known port for TFTP
-#define TFTP_BUFFER_LEN 512				//length opf data packets in TFTP
+#define TFTP_BUFFER_LEN 558				//length opf data packets in TFTP
 #define WRQ 2
 #define ERR 5
 
@@ -338,7 +338,12 @@ do{
 	//RECEVING DATA PROCESS--------------------------------------------------------
 	while (cont_recv > 0){				//as long as server messages non-empty, receive them
 		//receive data!
-		bytes_recv = recvfrom(s,buffer,sizeof(buffer),0,(struct sockaddr *)&incoming_addr, &incoming_addr_len);
+        int i=0;
+        for(i=0;i<512;i++){		//clear data array
+				data->data[i]='0';
+			}
+
+		bytes_recv = recvfrom(s,buffer,TFTP_BUFFER_LEN,0,(struct sockaddr *)&incoming_addr, &incoming_addr_len);
 
 
 		//error check - does file exist?
@@ -356,15 +361,17 @@ do{
 
 
 		n = bytes_recv;
-		//data->data[bytes_recv-4] = '\0';
+		data->data[bytes_recv-4] = '\0';
 
 		//add packet size to total
 		total_size += bytes_recv;
 
 		//DEBUG output stats
-		printf("Received packet type %d, block %d, data: %s\n",
+		printf("\n-----------------------------------------\n");
+		printf("Received packet type %d, block %d, data:\n %s\n",
 		       ntohs(data->opcode), ntohs(data->block_number),
 		       data->data);
+		printf("\n-----------------------------------------\n");
 
 		/*write to text/binary file here*/
 		if(filetype == TEXT){
@@ -387,8 +394,9 @@ do{
 
 		//check if connection is ready to be closed
 		//if datalength <512 bytes (+46 header), close the socket.
+		//note subtract the last ACK header for total filesize
 		if(n < 512){
-			printf("\nFile size: %d bytes\n",total_size-4); 			//display total size of file
+			printf("\nFile size: %d bytes\n",total_size-47); 			//display total size of file
 			printf("File received. Check folder for contents. Closing socket\n");
 			cont_recv = 0;							//exit loop for Rx
 			fclose(filePtr);						//close file I/O

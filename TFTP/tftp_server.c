@@ -233,28 +233,11 @@ int main(int argc, char *argv[])			//argv[] are args passed from user in termina
 
 							*/
 
-	/*if (listen(s, BACKLOG) == -1) {				//if we have reached the backlog for listening, quit
-        perror("listen");
-        exit(1);
-    	}*/
 
 
 	struct sockaddr_storage incoming_addr;			//struct for incoming
 	socklen_t incoming_addr_len;				//incoming size
 	incoming_addr_len = sizeof(incoming_addr);
-
-	/* ----------Fork Socket Descriptor-----------------
-	Purpose:	Create a new process upon receiving client packet
-			Allows original port to remain open for other connections
-			new socket descripter will do all the data transfer
-										*/
-
-	/*new_sd = accept(s, (struct sockaddr *)incoming_addr, &incoming_addr_len);
-        if (new_sd == -1) {					//essentially create a new socket descriptor
-            perror("accept");
-            continue;
-        }*/
-
 
 /*	---------------------------------------------------------
 	INFORMATIONAL: Shows info about the type of packet received
@@ -266,8 +249,8 @@ int main(int argc, char *argv[])			//argv[] are args passed from user in termina
 	//receive the first packet from the client & address details
 	if ((bytes_recv = recvfrom(s, buffer, TFTP_BUFFER_LEN-1 , 0,
         (struct sockaddr *)&incoming_addr, &incoming_addr_len)) == -1) {
-        perror("Receive error");
-        exit(1);
+        	perror("Receive error");
+        	exit(1);
     	}
 
 	//Allows server to display IP address of client
@@ -287,11 +270,11 @@ int main(int argc, char *argv[])			//argv[] are args passed from user in termina
 		printf("Type:\t\tRRQ\n");
 		server_mode = RRQ;
 	}
-	else if (opcode == 2){		//we have a WRQ so store it
+	else if (opcode == 2){			//we have a WRQ so store it
 		wrq.opcode = htons(WRQ);
 		printf("Type:\t\tWRQ\n");
 		server_mode = WRQ;
-	}else{				//error occurred
+	}else{					//error occurred
 		errpack.opcode = htons(ERR);
 		printf("Type:\t\tERROR\n");
 		server_mode = ERR;
@@ -299,17 +282,18 @@ int main(int argc, char *argv[])			//argv[] are args passed from user in termina
 
 	/* FRAME: [opcode][filename][0][mode][0] */
 	int i=2;			//set pointers where each element starts
-	printf("Filename:\t");
+	printf("Filename:\t");			//display filename
 
+	//buffer the filename into its own char array
 	while((i < sizeof(buffer)) && buffer[i] != '\0' ){
 	printf("%c",buffer[i]);
 	filename_req[i-2] = buffer[i];
 	i++;
 	}
-	filename_req[i-1] = '\0';		//truncate filename
+	filename_req[i-1] = '\0';		//truncate filename string
 
-	printf("\nMode:\t\t");
-	i+=1;				//advance pointer
+	printf("\nMode:\t\t");			//display mode
+	i+=1;					//advance pointer
 	while((i < sizeof(buffer)) && buffer[i] != '\0' ){
 	printf("%c",buffer[i]);
 	i++;
@@ -326,8 +310,6 @@ int main(int argc, char *argv[])			//argv[] are args passed from user in termina
 		next packet if the ACK for it has been received.
 	*/
 
-	//buffer the filename into its own char array
-
 
 	if (server_mode == RRQ){
 
@@ -335,17 +317,19 @@ int main(int argc, char *argv[])			//argv[] are args passed from user in termina
 		if(((filePtr = fopen(filename_req,"rb"))==NULL)){
 			//assemble the error package for the client
 			printf("\nFile not found, sending error");
+
 			errpack.opcode = htons(ERR);
 			errpack.error_code = htons(NOTFOUNDERR);
 			sprintf((char *)&(errpack.error_msg), "%s%c",errormsg[NOTFOUNDERR],'\0');
 
 			if((n = sendto(s,&errpack,24,0,(struct sockaddr *)&incoming_addr, incoming_addr_len))==-1){
-			perror("Sending failed");	//if send fails, quit send process
-			exit(1);}					//if send fails, quit send process
+			perror("Sending failed");			//if send fails, quit send process
+			exit(1);}
 		}else{
 			//prepare to send the file!
 			//read file into buffer
 			printf("\nFile found, sending data");
+
 			if ( filePtr != NULL )
   			{
     			fseek(filePtr, 0L, SEEK_END);
@@ -359,18 +343,18 @@ int main(int argc, char *argv[])			//argv[] are args passed from user in termina
       					fclose(filePtr); filePtr = NULL;
 				}
 			}
+
 			//now file is in buffer, segment it in 512 bytes
 			//assemble data packet!
 			int i,j,blkcount;
 			i=0;j=0;			//marks pointer within block
 			blkcount=0;			//number of data blocks
 			int eofmrk=0;			//marks if EOF reached
-		while(eofmrk == 0){
-			data->opcode = htons(DATA);	//sets data opcode to DATA
-			data->block_number = htons(blkcount);
+
+		while(eofmrk == 0){			//as long as EOF not reached
+			data->opcode = htons(DATA);		//sets data opcode to DATA
+			data->block_number = htons(blkcount);	//sets block #
 			printf("\n----Sending block %d,",blkcount+1);
-
-
 
 			for(i=0;i<512;i++){		//clear data array
 				data->data[i]='0';
@@ -379,47 +363,54 @@ int main(int argc, char *argv[])			//argv[] are args passed from user in termina
 			//populate this data block with file data
 			for(i=0;i<512;i++)
 			{
-                //do a check for the last block -> if endln char
-				if(fbuffer[(512*blkcount)+i] == '\0') {
+                	//do a check for the last block -> if endln char
+				if(fbuffer[(512*blkcount)+i] == '\0')
+				{
 				eofmrk=1;
 				data->data[i] = fbuffer[(512*blkcount)+i];
 				data->data[i+1] = '\0';                     //terminate block early!
-				break;}
+				break;
+				}
 
 				data->data[i] = fbuffer[(512*blkcount)+i];  //else just do a normal block
 			}
 
-			//await ACK from client before sending next block
+			//send the data to the client, with error checking
+			//46 bytes of encapsulated header included (512 + 46 = 558)
+			printf(" with size: %li.----\n",strlen(data->data));
+            printf(data->data);
+			if(eofmrk == 0)
+			{        //use full-size packet if it's not the last one
+                		if((bytes_sent = sendto(s, (void*)data, 558, 0,(struct sockaddr *)&incoming_addr, incoming_addr_len))==-1)
+                		{
+				perror("Data send failed");
+				exit(1);
+                		}
+			}
+			else if (eofmrk == 1)
+			{  //else use truncated packet length!
+                		if((bytes_sent = sendto(s, (void*)data, (strlen(data->data)+46), 0,(struct sockaddr *)&incoming_addr, incoming_addr_len))==-1)
+                		{
+				perror("Data send failed");
+				exit(1);
+                		}
+
+			}
+
+						//await ACK from client before sending next block
 			bytes_recv = recvfrom(s,buffer,sizeof(buffer),0,(struct sockaddr *)&incoming_addr, &incoming_addr_len);
 			opcode = buffer[1];
 			printf("\nReceived ACK opcode: %d",opcode);
 
 			//only start sending the next block if the ACK is valid!
-			if(opcode == ACK){
-
-				if(pack->block_number == data->block_number){
+			if(opcode == ACK)
+			{
+				if(pack->block_number == data->block_number)
+				{
 					data->block_number += 1;
 					blkcount++;
-                    total_size +=bytes_sent;
+                    			total_size +=(bytes_sent - 46);
 				}
-			}
-
-			//send the data to the client, with error checking
-			printf(" with size: %li.----\n",strlen(data->data));
-			if(eofmrk == 0){        //use full-size packet if it's not the last one
-                if((bytes_sent = sendto(s, (void*)data, 558, 0,(struct sockaddr *)&incoming_addr, incoming_addr_len))==-1)
-                {
-				perror("Data send failed");
-				exit(1);
-                }
-			}
-			else if (eofmrk == 1){  //else use truncated packet length!
-                if((bytes_sent = sendto(s, (void*)data, (strlen(data->data)+46), 0,(struct sockaddr *)&incoming_addr, incoming_addr_len))==-1)
-                {
-				perror("Data send failed");
-				exit(1);
-                }
-
 			}
 
 
