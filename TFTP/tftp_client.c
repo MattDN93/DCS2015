@@ -97,6 +97,7 @@
 	FILE *filePtr;					///pointer for file access
 	int filetype;					//0=text, 1=binary
     char *fbuffer;			        //file buffer
+    char filename_dest[TFTP_BUFFER_LEN]; //destination filname
 
 int main(int argc, char *argv[])			//argv[] are args passed from user in terminal
 {
@@ -161,39 +162,6 @@ do{
  }while(cont == 1);		//break out of this loop if the syntax is correct!
 
 
-	//FILE CREATION-------------------------------------------
-	//we create a text file to write to if getting text file
-	//otherwise, a binary file is opened to append to
-
-	//----------------------------------
-	//REMOVE TRAILING crlf on filename
-	arg2[strcspn(arg2, "\n")] = 0;
-	//----------------------------------
-
-	if((strstr(arg2,"txt")!=NULL)){			//the filename is a text file!
-	filePtr = fopen("debug_text.txt","w");			//creates file to write to
-	if (filePtr == NULL){ printf("File I/O error.");}
-	filetype = TEXT;					//TEXT FILE
-	}
-
-	else if ((strstr(arg2,"pic")!=NULL)){			//picture file
-	filePtr = fopen("debug_pic","wb");			//binary write mode!
-	filetype = BINARY;					//BINARY FILE
-	if (filePtr == NULL) {printf("File I/O error.");}
-	}
-
-	else if ((strstr(arg2,"movie")!=NULL)){			//video file
-	filePtr = fopen("debug_movie","wb");			//binary write mode!
-	filetype = BINARY;					//BINARY FILE
-        if (filePtr == NULL){ printf("File I/O error.");}
-	}else{
-	//sprintf((char *)&(arg2), "%s%s", arg2, "_received");
-	filePtr = fopen("debug_rx","wb");     //default file case
-	filetype = BINARY;
-        if (filePtr == NULL){ printf("File I/O error.");
-        exit(1);
-            }
-	}
 
 	//-------------------------------------------
     // MRDDN 2015 21253024
@@ -309,6 +277,45 @@ do{
 
 		if(getput == GET)
 		{
+
+                //FILE CREATION-------------------------------------------
+            //we create a text file to write to if getting text file
+
+            //----------------------------------
+            //REMOVE TRAILING crlf on filename
+            arg2[strcspn(arg2, "\n")] = 0;
+            //----------------------------------
+
+            if((strstr(arg2,"txt")!=NULL)){			//the filename is a text file!
+            sprintf(filename_dest, "%s%s","Cli_text_rx_",arg2);
+            filePtr = fopen(filename_dest,"w");			//creates file to write to
+            if (filePtr == NULL){ printf("File I/O error.");}
+            filetype = TEXT;					//TEXT FILE
+            }
+
+            else if ((strstr(arg2,"pic")!=NULL)){			//picture file
+            sprintf(filename_dest, "%s%s","Cli_pic_rx_",arg2);
+            filePtr = fopen(filename_dest,"wb");			//binary write mode!
+            filetype = BINARY;					//BINARY FILE
+            if (filePtr == NULL) {printf("File I/O error.");}
+            }
+
+            else if ((strstr(arg2,"movie")!=NULL)){			//video file
+            sprintf(filename_dest, "%s%s","Cli_movie_rx_",arg2);
+            filePtr = fopen(filename_dest,"wb");			//binary write mode!
+            filetype = BINARY;					//BINARY FILE
+                if (filePtr == NULL){ printf("File I/O error.");}
+            }else{
+            //sprintf((char *)&(arg2), "%s%s", arg2, "_received");
+            sprintf(filename_dest, "%s%s","Cli_rx_",arg2);
+            filePtr = fopen(filename_dest,"wb");     //default file case
+            filetype = BINARY;
+                if (filePtr == NULL){ printf("File I/O error.");
+                exit(1);
+                    }
+            }
+
+
             rrq.opcode = htons(RRQ);	//opcode = 1 (RRQ) use host-to-network!!
             sprintf((char *)&(rrq.info), "%s%c%s%c", arg2, '\0', "octet", '\0');
             //printf("%d",(int)rrq.opcode);
@@ -417,6 +424,40 @@ do{
         //--------------------DATA PUT ROUTINES------------------------
 		if(getput == PUT)
 		{
+
+            //FILE MANAGEMENT-------------------------------------------
+            //we open the file as required
+
+            //----------------------------------
+            //REMOVE TRAILING crlf on filename
+            arg2[strcspn(arg2, "\n")] = 0;
+            //----------------------------------
+
+            if((strstr(arg2,"txt")!=NULL)){			//the filename is a text file!
+            filePtr = fopen(arg2,"r");			//creates file to write to
+            if (filePtr == NULL){ printf("File I/O error.");}
+            filetype = TEXT;					//TEXT FILE
+            }
+
+            else if ((strstr(arg2,"pic")!=NULL)){			//picture file
+            filePtr = fopen(arg2,"rb");			//binary write mode!
+            filetype = BINARY;					//BINARY FILE
+            if (filePtr == NULL) {printf("File I/O error.");}
+            }
+
+            else if ((strstr(arg2,"movie")!=NULL)){			//video file
+            filePtr = fopen(arg2,"rb");			//binary write mode!
+            filetype = BINARY;					//BINARY FILE
+                if (filePtr == NULL){ printf("File I/O error.");}
+            }else{
+            filePtr = fopen(arg2,"rb");     //default file case
+            filetype = BINARY;
+                if (filePtr == NULL){ printf("File I/O error.");
+                exit(1);
+                    }
+            }
+
+            //package a WRQ packet
             wrq.opcode = htons(WRQ);	//opcode = 2 (WRQ) use host-to-network!!
             sprintf((char *)&(wrq.info), "%s%c%s%c", arg2, '\0', "octet", '\0');
 
@@ -555,7 +596,7 @@ do{
             {
                 printf("\nServer response error: %s\n",gai_strerror(errno));
             }else{
-                printf("\n File received.\n");
+                printf("\n File sent to server.\n");
                 close(s);
                 }
         }//END PUT

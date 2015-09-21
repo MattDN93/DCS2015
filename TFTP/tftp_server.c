@@ -69,7 +69,6 @@ int n;
 
 	/* for receiving data packets from a client*/
 	struct sockaddr_storage incoming_addr;		//storage for incoming address
-	char filename_req[TFTP_BUFFER_LEN];
 	char buffer[TFTP_BUFFER_LEN];				//string for received message
 	int recvmsg_len;				//received length
 	int bytes_recv;					//buffer to receive
@@ -86,7 +85,8 @@ int n;
 	FILE *filePtr;					///pointer for file access
 	int filetype;					//0=text, 1=binary
 	char *fbuffer;			//file buffer
-
+    char filename_req[TFTP_BUFFER_LEN];
+    char filename_dest[TFTP_BUFFER_LEN];
 	/*mode of operation*/
 	int server_mode;
 
@@ -164,8 +164,7 @@ int main(int argc, char *argv[])			//argv[] are args passed from user in termina
 		fprintf(stderr, "Connection params failed: %s\n", gai_strerror(status));
 		return 2;
 	}
-	//dest = argv[1];					//assign input args to dest h/n
-	//destport = argv[2];				//...or port respectively
+
 
 	/*-----------------------------------------------------*/
 	/*----------------------------------------------------
@@ -419,7 +418,7 @@ int main(int argc, char *argv[])			//argv[] are args passed from user in termina
 
         }//eof noted!
 
-		printf("\n file sent.");
+		printf("\n file sent to client.");
 		printf("\n Total size %d.",total_size);
 		}
 		//rrq.opcode = htons(RRQ);	//opcode = 1 (RRQ) use host-to-network!!
@@ -450,24 +449,27 @@ int main(int argc, char *argv[])			//argv[] are args passed from user in termina
 	//----------------------------------
 
                 if((strstr(filename_req,"txt")!=NULL)){			//the filename is a text file!
-                filePtr = fopen("debug_text.txt","w");			//creates file to write to
+                sprintf(filename_dest, "%s%s","Srv_text_rx_",filename_req);
+                filePtr = fopen(filename_dest,"w");			//creates file to write to
                 if (filePtr == NULL){ printf("\nFile I/O error.");}
                 filetype = TEXT;					//TEXT FILE
                 }
 
                 else if ((strstr(filename_req,"pic")!=NULL)){			//picture file
-                filePtr = fopen("debug_pic","wb");			//binary write mode!
+                sprintf(filename_dest, "%s%s","Srv_pic_rx_",filename_req);
+                filePtr = fopen(filename_dest,"wb");			//binary write mode!
                 filetype = BINARY;					//BINARY FILE
                 if (filePtr == NULL) {printf("\nFile I/O error.");}
                 }
 
                 else if ((strstr(filename_req,"movie")!=NULL)){			//video file
-                filePtr = fopen("debug_movie","wb");			//binary write mode!
+                sprintf(filename_dest, "%s%s","Srv_mov_rx_",filename_req);
+                filePtr = fopen(filename_dest,"wb");			//binary write mode!
                 filetype = BINARY;					//BINARY FILE
                     if (filePtr == NULL){ printf("\nFile I/O error.");}
                 }else{
-                //sprintf((char *)&(arg2), "%s%s", arg2, "_received");
-                filePtr = fopen("debug_rx","wb");     //default file case
+                sprintf(filename_dest, "%s%s","Srv_rx_",filename_req);
+                filePtr = fopen(filename_dest,"wb");     //default file case
                 filetype = BINARY;
                     if (filePtr == NULL){ printf("\nFile I/O error.");
                     exit(1);
@@ -556,7 +558,7 @@ int main(int argc, char *argv[])			//argv[] are args passed from user in termina
                 if(n < 512)
                 {
                     printf("\nFile size: %d bytes\n",total_size ); 			//display total size of file
-                    printf("File received. Check folder for contents. Closing socket\n");
+                    printf("File received from client. Check folder for contents. Closing socket\n");
                     cont_recv = 0;							//exit loop for Rx
                     fclose(filePtr);						//close file I/O
                     close(s);							//close socket
