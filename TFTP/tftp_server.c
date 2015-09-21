@@ -1,12 +1,24 @@
-/* Program:
-		SERVER STUB
-		uses send commands to return
+/* Program:	SERVER FOR TFTP CONNECTION
+		PURPOSE:    Provides server to read/write files in its directory to a client
+                    Allows for transferring of files to a remote client
+                    Also receiving files from a remote client
+                    Works on port 2804, passive open
+                    Uses TFTP packet protocol (WRQ, RRQ)
+                    Includes error checking and file output
+        PREREQ:     File "cs_tftp.h" must exist to compile
+                    Runs on Ubuntu 14.04+
+                    Compiled with gcc and debugged in Code::Blocks
+                    If sending files to client, file must be in same directory as server
+        SYNTAX:     <hostname> GET|PUT <filename>
+        GITHUB:     http://github.com/MattDN93/DCS2015/TFTP
+        CREDIT:     *Roy Levow, Florida Atlantic University CS
+                        >"cs_tftp.h" modified from his original work
+                        >RRQ, WRQ packet construction credit his TFTP course
+                    *Beej's Guide to Network Programming
+                        >Socket layout
+                        >UDP routines
+                        >getaddrlen() details
 
-		*C stub to test creation of sockets
-		*Listens for connection on port 2804
-		*Use "socket_connect localhost 2804" in another terminal
-		to test it!
-		*NEW: telnet to this server on 2804 and see reply!
    Module:	DCS 2015 ENEL4CC
    Name:	Matthew de Neef
    Stu. Num.	212503024			*/
@@ -18,7 +30,13 @@
 #include <netinet/in.h>
 #include <errno.h>
 
-/* to explain sockets, only these are explicitly needed */
+/*-----------TFTP VARIABLE DEFINES---------------------------
+-Gives port data, andbuffer lengths, may be modified as needed
+-Don't reduce TFTP buffer <512, changes protocol
+-Opcodes are standard for TFTP, don't modify
+-Text/binary define write/read mode for files
+-get/put allows correct routine to run based on user input
+----------------------------------------------------------- */
 #include <sys/types.h>
 #include <sys/socket.h>
 #include "cs_tftp.h"					//standardised declarations for TFTP
@@ -165,10 +183,17 @@ int main(int argc, char *argv[])			//argv[] are args passed from user in termina
 		return 2;
 	}
 
+/*-----------SOCKET METHODS---------------------------
+-All the methods to set up a sockeet for communication
+-Process:
+    >addressinfo details shown to user, properties of connection
+    >socket created, file descriptor stored for comms
+    >data exchanged on socket once confirmedby server
 
-	/*-----------------------------------------------------*/
-	/*----------------------------------------------------
-		socket creation & error handling	*/
+CLIENT (2804)----------->Initial Setup-------------------->(2804)SERVER
+CLIENT (ephemeral)<------Return ACK<-----------------------(2804)SERVER
+CLIENT (ephemeral)<----->Data Tx/Rx<--------------(new ephemeral)SERVER
+*/
 
 	/* loop through all the results and bind to the first we can
 	we want to bind so that the socket is accessible by clients
@@ -259,12 +284,19 @@ int main(int argc, char *argv[])			//argv[] are args passed from user in termina
 	//Displays size of the packet
 	printf("Server: packet is %d bytes long\n", bytes_recv);
     	//buffer[bytes_recv] = '\0';
+
+    /*-----------PACKET DETECTION---------------------------
+    -The server must know what the client wants from it
+    - A read request means the server must send the client a file (RRQ)
+    - A write request means the server must receive a file from client (WRQ)
+    - packets segmented with opcode and data                                    */
+
 	printf("---------Packet Information-------\n");
 	int opcode;
 	opcode = buffer[1] ;
 	printf("Opcode:\t\t%d\n",buffer[1]);
 
-	if(opcode == 1){			//we have a RRQ so store it
+	if(opcode == 1){			    //we have a RRQ so store it
 		rrq.opcode = htons(RRQ);
 		printf("Type:\t\tRRQ\n");
 		server_mode = RRQ;
@@ -273,7 +305,7 @@ int main(int argc, char *argv[])			//argv[] are args passed from user in termina
 		wrq.opcode = htons(WRQ);
 		printf("Type:\t\tWRQ\n");
 		server_mode = WRQ;
-	}else{					//error occurred
+	}else{					        //error occurred
 		errpack.opcode = htons(ERR);
 		printf("Type:\t\tERROR\n");
 		server_mode = ERR;
@@ -421,14 +453,6 @@ int main(int argc, char *argv[])			//argv[] are args passed from user in termina
 		printf("\n file sent to client.");
 		printf("\n Total size %d.",total_size);
 		}
-		//rrq.opcode = htons(RRQ);	//opcode = 1 (RRQ) use host-to-network!!
-		//sprintf((char *)&(rrq.info), "%s%c%s%c", arg2, '\0', "octet", '\0');
-		//printf("%d",(int)rrq.opcode);
-
-		//if((n = sendto(s,&rrq,24,0,res->ai_addr, res->ai_addrlen))==-1){
-		//	perror("Sending command to server failed.");	//if send fails, quit send process
-		//	exit(1);
-		//}
 
 	}else if (server_mode == WRQ){
     // 212503024 Matthew de Neef
@@ -575,11 +599,6 @@ int main(int argc, char *argv[])			//argv[] are args passed from user in termina
 	close(new_sd);
 	close(s);
     // MRDDN 2015 21253024
-	/*if(c == -1){
-		printf("\nconnection failed. Reason: %s\n",gai_strerror(c));
-	}else{
-		printf("Socket connected to %s on port %s successfully\n", dest, destport);
-	}*/
 
 }
 

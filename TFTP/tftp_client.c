@@ -1,11 +1,28 @@
 /* Program:	CLIENT FOR TFTP CONNECTION
-		Connects to a TFTP server to GET files
-		*accepts filename as argument
-		*syntax <host> GET <filename>
-		*TFTP port 69 used internally to connect
-   Module:	IE 2015 ENEL4IE
+		PURPOSE:    Provides prompt to user to interact with TFTP server
+                    Allows for transferring of files to a remote server (PUT)
+                    Also receiving files from a remote server (GET)
+                    Works on port 2804
+                    Uses TFTP packet protocol (WRQ, RRQ)
+                    Includes error checking and file output
+        PREREQ:     File "cs_tftp.h" must exist to compile
+                    Runs on Ubuntu 14.04+
+                    Compiled with gcc and debugged in Code::Blocks
+                    If sending files, file must be in same directory as client
+        SYNTAX:     <hostname> GET|PUT <filename>
+        GITHUB:     http://github.com/MattDN93/DCS2015/TFTP
+        CREDIT:     *Roy Levow, Florida Atlantic University CS
+                        >"cs_tftp.h" modified from his original work
+                        >RRQ, WRQ packet construction credit his TFTP course
+                    *Beej's Guide to Network Programming
+                        >Socket layout
+                        >UDP routines
+                        >getaddrlen() details
+
+   Module:	DCS 2015 ENEL4CC
    Name:	Matthew de Neef
    Stu. Num.	212503024			*/
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -14,19 +31,27 @@
 #include <netinet/in.h>
 #include <errno.h>
 
-/* to explain sockets, only these are explicitly needed */
 #include <sys/types.h>
 #include <sys/socket.h>
-#include "cs_tftp.h"					//standardised declarations for TFTP
+#include "cs_tftp.h"					    //standardised declarations for TFTP
+
+/*-----------TFTP VARIABLE DEFINES---------------------------
+-Gives port data, andbuffer lengths, may be modified as needed
+-Don't reduce TFTP buffer <512, changes protocol
+-Opcodes are standard for TFTP, don't modify
+-Text/binary define write/read mode for files
+-get/put allows correct routine to run based on user input
+----------------------------------------------------------- */
 
 #define TFTP_PORT "2804"					//well known port for TFTP
-#define TFTP_BUFFER_LEN 558				//length opf data packets in TFTP
-#define FBUFFER_LEN 10000000            //max buffer size
+#define TFTP_BUFFER_LEN 558				    //length opf data packets in TFTP
+#define FBUFFER_LEN 10000000                //max buffer size
 
-#define RRQ 1                       //opcode # for a RRQ
-#define WRQ 2                       //opcode for write req
-#define ACK 4                       //opcode for ack
-#define ERR 5                       //opcode for error
+#define RRQ 1                               //opcode # for a RRQ
+#define WRQ 2                               //opcode for write req
+#define ACK 4                               //opcode for ack
+#define ERR 5                               //opcode for error
+
 
 #define TEXT 0
 #define BINARY 1
@@ -34,19 +59,17 @@
 #define GET 6                       //defines for modes of operation
 #define PUT 7
 
-	/*sockets method*/
-	//void startSockets(char *,char * , char *,struct addrinfo, struct addrinfo*);
-
-
+/*-----------SOCKET VARIABLE DEFINES--------------------------
+-USED IN SOCKET CREATION, MANAGEMENT AND TROUBLESHOOTING
+----------------------------------------------------------- */
 	int n;
-	/*socket destination variables*/
-	char *dest;					//destination hostname
-	char *destport;					//destination port
-	char ipstr[INET6_ADDRSTRLEN];			//array of length of an ipv6 addr
+	char *dest;					        //destination hostname
+	char *destport;					    //destination port
+	char ipstr[INET6_ADDRSTRLEN];		//array of length of an ipv6 addr
 
 	/*socket properties*/
-	int s,c;					//socket descriptor/ connect result
-	char *inettype;					//friendly names for getaddrinfo params
+	int s,c;					        //socket descriptor/ connect result
+	char *inettype;					    //friendly names for getaddrinfo params
 	char *socktype;
 	char *prottype;
 
@@ -54,34 +77,36 @@
 	int getput = GET;					//set operation
 	//RRQ PACKET
 	generic_packet rrq;      			// request packet
-       	char* prrq = (char*)&rrq;  			// pointer to rrq packet
+       	char* prrq = (char*)&rrq;  		// pointer to rrq packet
 
 	//WRQ PACKET
 	generic_packet wrq;      			// write request packet
-       	char* pwrq = (char*)&wrq;  			// pointer to rrq packet
+       	char* pwrq = (char*)&wrq;  		// pointer to rrq packet
 
     //ERROR PACKET
-    error_packet errpack;                   //error packet definitions
+    error_packet errpack;               //error packet definitions
         char* perr = (char*)&errpack;
 	//GENERIC DATA PACKET
-	struct sockaddr_in dgram_dest;			//datagram destination
-	char *msg_tosend;				//string of message to send
-	int sndmsg_len;					//length of string above
-	int bytes_sent;					//counter for bytes sent
+	struct sockaddr_in dgram_dest;		//datagram destination
+	char *msg_tosend;				    //string of message to send
+	int sndmsg_len;					    //length of string above
+	int bytes_sent;					    //counter for bytes sent
 
 	/* for receiving data from a server*/
 	struct sockaddr_storage incoming_addr;		//storage for incoming address
 	char buffer[TFTP_BUFFER_LEN];				//string for received message
-	int recvmsg_len;				//received length
-	int bytes_recv;					//buffer to receive
-	int new_sd;					//receiving socket descriptor
-	int cont_recv=1;				//flag to set if data must still be received
-	int total_size;				//total Rx size
+	int recvmsg_len;				            //received length
+	int bytes_recv;					            //buffer to receive
+	int new_sd;					                //receiving socket descriptor
+	int cont_recv=1;				            //flag to set if data must still be received
+	int total_size;				                //total Rx size
 
 	/*using header struct definitions for predefined packets */
 	data_packet *data = (data_packet*)buffer;		//data from buffer
 	ack_packet *pack = (ack_packet*)buffer;     	//for returning ACKs for data received
-    error_packet *error = (error_packet*)buffer;  //for communicating errors
+    error_packet *error = (error_packet*)buffer;    //for communicating errors
+
+
 	/* char arrays for each user input arg
 	// MRDDN 2015 21253024
 	arg0 = hostname / address
@@ -94,24 +119,24 @@
 	char *arg2;
 
 	//file management operations
-	FILE *filePtr;					///pointer for file access
-	int filetype;					//0=text, 1=binary
-    char *fbuffer;			        //file buffer
-    char filename_dest[TFTP_BUFFER_LEN]; //destination filname
+	FILE *filePtr;					        //pointer for file access
+	int filetype;					        //0=text, 1=binary
+    char *fbuffer;			                //file buffer
+    char filename_dest[TFTP_BUFFER_LEN];    //destination filname
 
 int main(int argc, char *argv[])			//argv[] are args passed from user in terminal
 {
 	char *inarg[60];
-	char *arg[3];					//accepts input args from user
+	char *arg[3];					        //accepts input args from user, 3 of them
 
 	char *saveptr;
-	int cont=0;					//var to indicate continuing execution
+	int cont=0;					            //var to indicate continuing execution
 
 	struct addrinfo hints, *res, *p;		//declares a struct of type
-	int status,rv;					//integer for return flags of functions
+	int status,rv;					        //integer for return flags of functions
 	memset(&hints, 0, sizeof hints);		//create memory for hints
 
-	int errno;					//error code
+	int errno;					            //error code
 
 	//Welcome user with a prompt'
 	printf("TFTP Client | Matthew de Neef | 212503024\n");
@@ -119,12 +144,12 @@ int main(int argc, char *argv[])			//argv[] are args passed from user in termina
 
 do{
 	cont = 0;
-	printf("tftp>");
+	printf("tftp>");                    //user prompt
 	fgets(inarg,50,stdin);				//get line from keyboard
 
 	/* TOKENIZE INPUT INFO:
 	arg0 = hostname
-	arg1 = "GET" for now
+	arg1 = "GET or PUT" -handles case indifference
 	arg2 = filename
 	*/
 
@@ -133,22 +158,24 @@ do{
 	arg1 = strtok_r(NULL, " ",&saveptr);
 	arg2 = strtok_r(NULL, " ",&saveptr);
 
+    //if all arguments are entered, parse into separate arguments
 	if(arg0!= NULL && arg1!=NULL && arg2!=NULL){
 	printf("%s\n",arg0);
 	printf("%s\n",arg1);
 	printf("%s\n",arg2);
 	}
 
-	if (arg2 == NULL){			//must have 3 args before checing validity
+    /* check argument validity before contintuing */
+	if (arg2 == NULL){			                        //must have 3 args before checing validity
 	printf("usage: <hostname to connect to> GET|PUT <filename>. Try again.\n");
 	cont = 1;}
 
-	if(arg2!=NULL){			//this only runs if we have all 3 args
+	if(arg2!=NULL){			                            //this only runs if we have all 3 args
 		if ((strstr(arg1,"GET")==NULL)&&(strstr(arg1,"get")==NULL)){
-			getput = PUT;
+			getput = PUT;                               //if the "get" keyword isn't present, but entry made, set mode to PUT
 			if((strstr(arg1,"PUT")==NULL)&&(strstr(arg1,"put")==NULL)){
-				printf("GET/PUT command missing. Try again.\n");
-				cont = 1;}
+				printf("GET/PUT command missing. Try again.\n");    //then check, if it isn't put or get, ask again
+				cont = 1;}                                          //ask user again
 			}
 	}
 
@@ -190,7 +217,7 @@ do{
 	//printf("Again AFTER MEMSET: %s\n",arg1);
 	/*get address info for host
 	ARGUMENTS:	1st: IP address of host to get info
-			2nd: Port, fixed at 69 for TFTP
+			2nd: Port, fixed at 2804 for this client
 			3rd: hints struct with socket/protocol we require
 			4th: the actual socket/protocol data the server has
 	PURPOSE:	passes the hints struct with connection requirements
@@ -204,23 +231,29 @@ do{
 	}
 
 
-	//-----------------------------------------------------------------------------------------------
-	//CALL SOCKETS
+/*-----------SOCKET METHODS---------------------------
+-All the methods to set up a sockeet for communication
+-Process:
+    >addressinfo details shown to user, properties of connection
+    >socket created, file descriptor stored for comms
+    >data exchanged on socket once confirmedby server
 
-	dest = arg0;				//assign input args to dest h/n
+CLIENT (2804)----------->Initial Setup-------------------->(2804)SERVER
+CLIENT (ephemeral)<------Return ACK<-----------------------(2804)SERVER
+CLIENT (ephemeral)<----->Data Tx/Rx<--------------(new ephemeral)SERVER
+
+----------------------------------------------------------- */
+	dest = arg0;				        //assign input args to dest hostname
 	destport = TFTP_PORT;				//...or port respectively
 
-	//printf("\n%s and %s\n",arg1,arg2);
-
+    /* Informational for user--------------------------*/
 	printf("Opening socket for %s on dest. port: %s\n\n", arg0, TFTP_PORT);		//else show socket
 
 	if(res->ai_family == AF_INET6){inettype = "IPv6";}else{inettype = "IPv4";}
 	if(res->ai_socktype == SOCK_DGRAM){socktype = "Datagram";}else{socktype = "Stream";}
 	if(res->ai_protocol == 6){prottype = "TCP";}else{prottype = "UDP";}
 
-	//printf("%d\n",res->ai_family);
-	//printf("%d\n",res->ai_socktype);
-	//printf("%d\n",res->ai_protocol);
+
 	printf("family: %s \n socket type: %s \n protocol: %s \n",inettype,socktype,prottype);
 
 	//LOOPING THROUGH RESULTS TO MAKE A SOCKET
@@ -278,8 +311,10 @@ do{
 		if(getput == GET)
 		{
 
-                //FILE CREATION-------------------------------------------
-            //we create a text file to write to if getting text file
+            /*FILE CREATION-------------------------------------------
+            -we create a text file to write to if getting text file
+            -append Cli_<filetype>_rx_<filename> to new file
+            -THis allows client and server to run in same folder if needed */
 
             //----------------------------------
             //REMOVE TRAILING crlf on filename
@@ -353,6 +388,7 @@ do{
                     data->data[i]='0';
                 }
 
+                //receive the data on new ephemeral port socket
                 bytes_recv = recvfrom(s,buffer,TFTP_BUFFER_LEN,0,(struct sockaddr *)&incoming_addr, &incoming_addr_len);
 
 
@@ -372,19 +408,19 @@ do{
 
 
                 n = bytes_recv - 46;               //account for header overhead
-                data->data[bytes_recv-4] = '\0';
+                data->data[bytes_recv-4] = '\0';   //add endline char
 
                 //add packet size to total
                 total_size += (bytes_recv - 46);   //again header overhead
 
-                //DEBUG output stats
+                //DEBUG output stats & show data, remove if needed
                 printf("\n-----------------------------------------\n");
                 printf("Received packet type %d, block %d, data:\n %s\n",
                    ntohs(data->opcode), ntohs(data->block_number),
                    data->data);
                 printf("\n-----------------------------------------\n");
 
-            /*write to text/binary file here*/
+                /*write to text/binary file here*/
                 if(filetype == TEXT)
                 {
                     fputs(data->data, filePtr);		//write to file
@@ -425,8 +461,9 @@ do{
 		if(getput == PUT)
 		{
 
-            //FILE MANAGEMENT-------------------------------------------
-            //we open the file as required
+            /*FILE CREATION-------------------------------------------
+            -we check a file to read to if putting text file
+            -THis allows client and server to run in same folder if needed */
 
             //----------------------------------
             //REMOVE TRAILING crlf on filename
